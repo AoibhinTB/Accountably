@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ConfirmForm } from "@/components/confirm-form";
 import { deleteChallenge, updateChallenge } from "../actions";
+import { logCompletion } from "./completions/actions";
 
 type Challenge = {
   id: string;
@@ -17,6 +18,22 @@ type Challenge = {
   created_by: string;
   profiles: { display_name: string } | null;
   groups: { name: string } | null;
+};
+
+type Completion = {
+  id: string;
+  completed_at: string;
+  note: string | null;
+  user_id: string;
+  profiles: { display_name: string } | null;
+};
+
+const formatCompletedAt = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
 };
 
 export default async function ChallengePage({
@@ -42,6 +59,13 @@ export default async function ChallengePage({
 
   const { data: userData } = await supabase.auth.getUser();
   const isCreator = userData.user?.id === challenge.created_by;
+
+  const { data: completions } = await supabase
+    .from("completions")
+    .select("id, completed_at, note, user_id, profiles(display_name)")
+    .eq("challenge_id", challenge.id)
+    .order("completed_at", { ascending: false })
+    .returns<Completion[]>();
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-10">
@@ -109,109 +133,170 @@ export default async function ChallengePage({
         </dl>
       </section>
 
-      {isCreator && (
-        <section className="rounded-lg border border-zinc-200 p-4">
-          <h2 className="mb-3 text-sm font-semibold">Manage challenge</h2>
+      <section className="mb-6 rounded-lg border border-zinc-200 p-4">
+        <h2 className="mb-3 text-sm font-semibold">Log a completion</h2>
+        <form action={logCompletion} className="space-y-3">
+          <input type="hidden" name="group_id" value={groupId} />
+          <input type="hidden" name="challenge_id" value={challenge.id} />
+          <label className="block">
+            <span className="text-xs font-medium text-zinc-700">Note (optional)</span>
+            <textarea
+              name="note"
+              rows={2}
+              maxLength={500}
+              placeholder="How did it go?"
+              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+            Log completion
+          </button>
+        </form>
+      </section>
 
-          <form action={updateChallenge} className="mb-6 space-y-3">
-            <input type="hidden" name="group_id" value={groupId} />
-            <input type="hidden" name="challenge_id" value={challenge.id} />
-
-            <label className="block">
-              <span className="text-xs font-medium text-zinc-700">Title</span>
-              <input
-                name="title"
-                type="text"
-                required
-                maxLength={120}
-                defaultValue={challenge.title}
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-xs font-medium text-zinc-700">
-                Description (optional)
-              </span>
-              <textarea
-                name="description"
-                rows={2}
-                maxLength={500}
-                defaultValue={challenge.description ?? ""}
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              />
-            </label>
-
-            <fieldset>
-              <legend className="text-xs font-medium text-zinc-700">Frequency</legend>
-              <div className="mt-1 flex gap-4 text-sm">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="frequency"
-                    value="daily"
-                    defaultChecked={challenge.frequency === "daily"}
-                  />
-                  Daily
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="frequency"
-                    value="weekly"
-                    defaultChecked={challenge.frequency === "weekly"}
-                  />
-                  Weekly
-                </label>
-              </div>
-            </fieldset>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-700">Start date</span>
-                <input
-                  name="start_date"
-                  type="date"
-                  required
-                  defaultValue={challenge.start_date}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-700">
-                  End date (optional)
-                </span>
-                <input
-                  name="end_date"
-                  type="date"
-                  defaultValue={challenge.end_date ?? ""}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
-
-            <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
-              Save changes
-            </button>
-          </form>
-
-          <div className="rounded-md border border-red-200 bg-red-50 p-3">
-            <p className="mb-3 text-xs text-red-800">
-              Deleting this challenge will also remove all of its completions
-              and reactions. This cannot be undone.
+      <section className="mb-6">
+        <h2 className="mb-3 text-sm font-semibold">
+          Completions{completions ? ` (${completions.length})` : ""}
+        </h2>
+        {!completions || completions.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-zinc-300 px-6 py-6 text-center">
+            <p className="text-sm text-zinc-600">
+              No completions yet. Be the first to log one.
             </p>
-            <ConfirmForm
-              action={deleteChallenge}
-              message={`Delete "${challenge.title}"? All completions and reactions for this challenge will be permanently deleted. This cannot be undone.`}
-            >
+          </div>
+        ) : (
+          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200">
+            {completions.map((c) => (
+              <li key={c.id} className="px-4 py-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-medium">
+                    {c.profiles?.display_name ?? "Unknown"}
+                  </span>
+                  <span className="text-xs text-zinc-500">
+                    {formatCompletedAt(c.completed_at)}
+                  </span>
+                </div>
+                {c.note && (
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">
+                    {c.note}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {isCreator && (
+        <details className="group">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50 [&::-webkit-details-marker]:hidden">
+            <span>Edit challenge</span>
+            <span className="text-zinc-400 transition-transform group-open:rotate-180">
+              ▾
+            </span>
+          </summary>
+
+          <section className="mt-3 rounded-lg border border-zinc-200 p-4">
+            <form action={updateChallenge} className="mb-6 space-y-3">
               <input type="hidden" name="group_id" value={groupId} />
               <input type="hidden" name="challenge_id" value={challenge.id} />
-              <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100">
-                Delete challenge
+
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-700">Title</span>
+                <input
+                  name="title"
+                  type="text"
+                  required
+                  maxLength={120}
+                  defaultValue={challenge.title}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-700">
+                  Description (optional)
+                </span>
+                <textarea
+                  name="description"
+                  rows={2}
+                  maxLength={500}
+                  defaultValue={challenge.description ?? ""}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <fieldset>
+                <legend className="text-xs font-medium text-zinc-700">Frequency</legend>
+                <div className="mt-1 flex gap-4 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="frequency"
+                      value="daily"
+                      defaultChecked={challenge.frequency === "daily"}
+                    />
+                    Daily
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="frequency"
+                      value="weekly"
+                      defaultChecked={challenge.frequency === "weekly"}
+                    />
+                    Weekly
+                  </label>
+                </div>
+              </fieldset>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-medium text-zinc-700">Start date</span>
+                  <input
+                    name="start_date"
+                    type="date"
+                    required
+                    defaultValue={challenge.start_date}
+                    className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-zinc-700">
+                    End date (optional)
+                  </span>
+                  <input
+                    name="end_date"
+                    type="date"
+                    defaultValue={challenge.end_date ?? ""}
+                    className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+
+              <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+                Save changes
               </button>
-            </ConfirmForm>
-          </div>
-        </section>
+            </form>
+
+            <div className="rounded-md border border-red-200 bg-red-50 p-3">
+              <p className="mb-3 text-xs text-red-800">
+                Deleting this challenge will also remove all of its completions
+                and reactions. This cannot be undone.
+              </p>
+              <ConfirmForm
+                action={deleteChallenge}
+                message={`Delete "${challenge.title}"? All completions and reactions for this challenge will be permanently deleted. This cannot be undone.`}
+              >
+                <input type="hidden" name="group_id" value={groupId} />
+                <input type="hidden" name="challenge_id" value={challenge.id} />
+                <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100">
+                  Delete challenge
+                </button>
+              </ConfirmForm>
+            </div>
+          </section>
+        </details>
       )}
     </main>
   );

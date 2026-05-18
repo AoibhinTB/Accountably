@@ -224,43 +224,50 @@ export default async function GroupPage({
       </section>
 
       {isCreator && (
-        <section className="rounded-lg border border-zinc-200 p-4">
-          <h2 className="mb-3 text-sm font-semibold">Manage group</h2>
+        <details className="group">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50 [&::-webkit-details-marker]:hidden">
+            <span>Edit group</span>
+            <span className="text-zinc-400 transition-transform group-open:rotate-180">
+              ▾
+            </span>
+          </summary>
 
-          <form action={updateGroup} className="mb-6 space-y-3">
-            <input type="hidden" name="group_id" value={group.id} />
-            <label className="block">
-              <span className="text-xs font-medium text-zinc-700">Group name</span>
-              <input
-                name="name"
-                type="text"
-                required
-                maxLength={80}
-                defaultValue={group.name}
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              />
-            </label>
-            <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
-              Save changes
-            </button>
-          </form>
-
-          <div className="rounded-md border border-red-200 bg-red-50 p-3">
-            <p className="mb-3 text-xs text-red-800">
-              Deleting this group will permanently remove all of its challenges
-              and completions. This cannot be undone.
-            </p>
-            <ConfirmForm
-              action={deleteGroup}
-              message={`Delete "${group.name}"? All challenges and completions in this group will be permanently deleted. This cannot be undone.`}
-            >
+          <section className="mt-3 rounded-lg border border-zinc-200 p-4">
+            <form action={updateGroup} className="mb-6 space-y-3">
               <input type="hidden" name="group_id" value={group.id} />
-              <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100">
-                Delete group
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-700">Group name</span>
+                <input
+                  name="name"
+                  type="text"
+                  required
+                  maxLength={80}
+                  defaultValue={group.name}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+                Save changes
               </button>
-            </ConfirmForm>
-          </div>
-        </section>
+            </form>
+
+            <div className="rounded-md border border-red-200 bg-red-50 p-3">
+              <p className="mb-3 text-xs text-red-800">
+                Deleting this group will permanently remove all of its challenges
+                and completions. This cannot be undone.
+              </p>
+              <ConfirmForm
+                action={deleteGroup}
+                message={`Delete "${group.name}"? All challenges and completions in this group will be permanently deleted. This cannot be undone.`}
+              >
+                <input type="hidden" name="group_id" value={group.id} />
+                <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100">
+                  Delete group
+                </button>
+              </ConfirmForm>
+            </div>
+          </section>
+        </details>
       )}
     </main>
   );
