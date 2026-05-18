@@ -2,6 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ConfirmForm } from "@/components/confirm-form";
+import {
+  CompletionFeed,
+  type CompletionItemData,
+} from "@/components/completion-item";
+import { SubmitButton } from "@/components/submit-button";
 import { deleteChallenge, updateChallenge } from "../actions";
 import { logCompletion } from "./completions/actions";
 
@@ -20,20 +25,12 @@ type Challenge = {
   groups: { name: string } | null;
 };
 
-type Completion = {
+type CompletionRow = {
   id: string;
   completed_at: string;
   note: string | null;
   user_id: string;
   profiles: { display_name: string } | null;
-};
-
-const formatCompletedAt = (iso: string) => {
-  const d = new Date(iso);
-  return `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  })}`;
 };
 
 export default async function ChallengePage({
@@ -65,18 +62,25 @@ export default async function ChallengePage({
     .select("id, completed_at, note, user_id, profiles(display_name)")
     .eq("challenge_id", challenge.id)
     .order("completed_at", { ascending: false })
-    .returns<Completion[]>();
+    .returns<CompletionRow[]>();
+
+  const completionItems: CompletionItemData[] = (completions ?? []).map((row) => ({
+    id: row.id,
+    userName: row.profiles?.display_name ?? "Unknown",
+    completedAt: row.completed_at,
+    note: row.note,
+  }));
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-10">
+    <main className="mx-auto w-full max-w-2xl px-4 pt-6 pb-24">
       <Link
         href={`/groups/${groupId}`}
-        className="text-sm text-zinc-600 hover:text-zinc-900"
+        className="inline-flex min-h-10 items-center text-sm text-zinc-600"
       >
         ← {challenge.groups?.name ?? "Back to group"}
       </Link>
 
-      <header className="mt-4 mb-8">
+      <header className="mt-3 mb-4">
         <div className="mb-2 flex items-center gap-2">
           <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
             {challenge.frequency}
@@ -95,108 +99,96 @@ export default async function ChallengePage({
       </header>
 
       {error && (
-        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {challenge.description && (
-        <section className="mb-6 rounded-lg border border-zinc-200 p-4">
-          <h2 className="mb-2 text-sm font-semibold">Description</h2>
-          <p className="whitespace-pre-wrap text-sm text-zinc-700">
-            {challenge.description}
-          </p>
-        </section>
+        <p className="mb-4 whitespace-pre-wrap text-sm text-zinc-700">
+          {challenge.description}
+        </p>
       )}
 
-      <section className="mb-6 rounded-lg border border-zinc-200 p-4">
-        <h2 className="mb-3 text-sm font-semibold">Schedule</h2>
-        <dl className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <dt className="text-xs font-medium text-zinc-500">Frequency</dt>
-            <dd className="mt-0.5 capitalize">{challenge.frequency}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-zinc-500">Starts</dt>
-            <dd className="mt-0.5">
-              {new Date(challenge.start_date).toLocaleDateString()}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-zinc-500">Ends</dt>
-            <dd className="mt-0.5">
-              {challenge.end_date
-                ? new Date(challenge.end_date).toLocaleDateString()
-                : "Runs indefinitely"}
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="mb-6 rounded-lg border border-zinc-200 p-4">
-        <h2 className="mb-3 text-sm font-semibold">Log a completion</h2>
-        <form action={logCompletion} className="space-y-3">
-          <input type="hidden" name="group_id" value={groupId} />
-          <input type="hidden" name="challenge_id" value={challenge.id} />
-          <label className="block">
-            <span className="text-xs font-medium text-zinc-700">Note (optional)</span>
-            <textarea
-              name="note"
-              rows={2}
-              maxLength={500}
-              placeholder="How did it go?"
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
-            Log completion
-          </button>
-        </form>
+      <section className="mb-6">
+        <details className="group">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-center gap-2 rounded-md bg-black px-4 py-3 text-base font-medium text-white [&::-webkit-details-marker]:hidden">
+            <span>Log completion</span>
+            <span aria-hidden className="text-zinc-300 transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <form
+            action={logCompletion}
+            className="mt-3 space-y-3 rounded-lg border border-zinc-200 bg-white p-4"
+          >
+            <input type="hidden" name="group_id" value={groupId} />
+            <input type="hidden" name="challenge_id" value={challenge.id} />
+            <label className="block">
+              <span className="text-xs font-medium text-zinc-700">Note (optional)</span>
+              <textarea
+                name="note"
+                rows={3}
+                maxLength={500}
+                placeholder="How did it go?"
+                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
+              />
+            </label>
+            <SubmitButton
+              pendingLabel="Logging…"
+              className="min-h-11 w-full rounded-md bg-black px-4 py-3 text-base font-medium text-white"
+            >
+              Log it
+            </SubmitButton>
+          </form>
+        </details>
       </section>
 
       <section className="mb-6">
         <h2 className="mb-3 text-sm font-semibold">
-          Completions{completions ? ` (${completions.length})` : ""}
+          Completions{completionItems.length ? ` (${completionItems.length})` : ""}
         </h2>
-        {!completions || completions.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-zinc-300 px-6 py-6 text-center">
-            <p className="text-sm text-zinc-600">
-              No completions yet. Be the first to log one.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200">
-            {completions.map((c) => (
-              <li key={c.id} className="px-4 py-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-sm font-medium">
-                    {c.profiles?.display_name ?? "Unknown"}
-                  </span>
-                  <span className="text-xs text-zinc-500">
-                    {formatCompletedAt(c.completed_at)}
-                  </span>
-                </div>
-                {c.note && (
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">
-                    {c.note}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <CompletionFeed
+          items={completionItems}
+          emptyMessage="No completions yet. Be the first to log one."
+        />
+      </section>
+
+      <section className="mb-4">
+        <details className="group">
+          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 text-base font-medium [&::-webkit-details-marker]:hidden">
+            <span>Schedule</span>
+            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <dl className="mt-3 grid grid-cols-2 gap-3 rounded-lg border border-zinc-200 bg-white p-4 text-sm">
+            <div>
+              <dt className="text-xs font-medium text-zinc-500">Frequency</dt>
+              <dd className="mt-0.5 capitalize">{challenge.frequency}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-zinc-500">Starts</dt>
+              <dd className="mt-0.5">
+                {new Date(challenge.start_date).toLocaleDateString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-zinc-500">Ends</dt>
+              <dd className="mt-0.5">
+                {challenge.end_date
+                  ? new Date(challenge.end_date).toLocaleDateString()
+                  : "Runs indefinitely"}
+              </dd>
+            </div>
+          </dl>
+        </details>
       </section>
 
       {isCreator && (
         <details className="group">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50 [&::-webkit-details-marker]:hidden">
+          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 text-base font-medium [&::-webkit-details-marker]:hidden">
             <span>Edit challenge</span>
-            <span className="text-zinc-400 transition-transform group-open:rotate-180">
-              ▾
-            </span>
+            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
           </summary>
 
-          <section className="mt-3 rounded-lg border border-zinc-200 p-4">
+          <section className="mt-3 rounded-lg border border-zinc-200 bg-white p-4">
             <form action={updateChallenge} className="mb-6 space-y-3">
               <input type="hidden" name="group_id" value={groupId} />
               <input type="hidden" name="challenge_id" value={challenge.id} />
@@ -209,26 +201,24 @@ export default async function ChallengePage({
                   required
                   maxLength={120}
                   defaultValue={challenge.title}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
                 />
               </label>
 
               <label className="block">
-                <span className="text-xs font-medium text-zinc-700">
-                  Description (optional)
-                </span>
+                <span className="text-xs font-medium text-zinc-700">Description (optional)</span>
                 <textarea
                   name="description"
                   rows={2}
                   maxLength={500}
                   defaultValue={challenge.description ?? ""}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
                 />
               </label>
 
               <fieldset>
                 <legend className="text-xs font-medium text-zinc-700">Frequency</legend>
-                <div className="mt-1 flex gap-4 text-sm">
+                <div className="mt-2 flex gap-4 text-base">
                   <label className="flex items-center gap-2">
                     <input
                       type="radio"
@@ -250,33 +240,32 @@ export default async function ChallengePage({
                 </div>
               </fieldset>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-xs font-medium text-zinc-700">Start date</span>
-                  <input
-                    name="start_date"
-                    type="date"
-                    required
-                    defaultValue={challenge.start_date}
-                    className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-zinc-700">
-                    End date (optional)
-                  </span>
-                  <input
-                    name="end_date"
-                    type="date"
-                    defaultValue={challenge.end_date ?? ""}
-                    className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                  />
-                </label>
-              </div>
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-700">Start date</span>
+                <input
+                  name="start_date"
+                  type="date"
+                  required
+                  defaultValue={challenge.start_date}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-700">End date (optional)</span>
+                <input
+                  name="end_date"
+                  type="date"
+                  defaultValue={challenge.end_date ?? ""}
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
+                />
+              </label>
 
-              <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+              <SubmitButton
+                pendingLabel="Saving…"
+                className="min-h-11 rounded-md bg-black px-4 py-3 text-base font-medium text-white"
+              >
                 Save changes
-              </button>
+              </SubmitButton>
             </form>
 
             <div className="rounded-md border border-red-200 bg-red-50 p-3">
@@ -290,9 +279,12 @@ export default async function ChallengePage({
               >
                 <input type="hidden" name="group_id" value={groupId} />
                 <input type="hidden" name="challenge_id" value={challenge.id} />
-                <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100">
+                <SubmitButton
+                  pendingLabel="Deleting…"
+                  className="min-h-11 rounded-md border border-red-300 bg-white px-4 py-3 text-base font-medium text-red-700"
+                >
                   Delete challenge
-                </button>
+                </SubmitButton>
               </ConfirmForm>
             </div>
           </section>

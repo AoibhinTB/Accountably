@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/submit-button";
 import { login, signup } from "./actions";
 
 export default async function LoginPage({
@@ -41,7 +42,7 @@ export default async function LoginPage({
                 name="display_name"
                 type="text"
                 required
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
               />
             </label>
           )}
@@ -52,7 +53,7 @@ export default async function LoginPage({
               type="email"
               required
               autoComplete="email"
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
             />
           </label>
           <label className="block">
@@ -63,16 +64,17 @@ export default async function LoginPage({
               required
               minLength={6}
               autoComplete={isSignup ? "new-password" : "current-password"}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
             />
           </label>
 
-          <button
+          <SubmitButton
             formAction={isSignup ? signup : login}
-            className="w-full rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            pendingLabel={isSignup ? "Signing up…" : "Logging in…"}
+            className="min-h-11 w-full rounded-md bg-black px-4 py-3 text-base font-medium text-white"
           >
             {isSignup ? "Sign up" : "Log in"}
-          </button>
+          </SubmitButton>
         </form>
 
         <p className="text-center text-sm text-zinc-600">

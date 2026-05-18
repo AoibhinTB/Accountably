@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { SubmitButton } from "@/components/submit-button";
 import { createGroup, joinGroupByCode } from "./actions";
 
 type Membership = {
@@ -28,26 +29,19 @@ export default async function GroupsPage({
   const groups = (memberships ?? []).flatMap((m) => (m.groups ? [m.groups] : []));
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-10">
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Your groups</h1>
-          <p className="text-sm text-zinc-600">Pacts you&apos;ve made with friends.</p>
-        </div>
-        <form action="/auth/signout" method="post">
-          <button className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50">
-            Sign out
-          </button>
-        </form>
+    <main className="mx-auto w-full max-w-2xl px-4 pt-8 pb-24">
+      <header className="mb-6">
+        <h1 className="text-2xl font-semibold">Your groups</h1>
+        <p className="text-sm text-zinc-600">Pacts you&apos;ve made with friends.</p>
       </header>
 
       {error && (
-        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <section className="mb-8">
+      <section className="mb-6">
         {groups.length === 0 ? (
           <div className="rounded-lg border border-dashed border-zinc-300 px-6 py-8 text-center">
             <p className="text-sm text-zinc-600">
@@ -55,14 +49,14 @@ export default async function GroupsPage({
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200">
+          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
             {groups.map((g) => (
               <li key={g.id}>
                 <Link
                   href={`/groups/${g.id}`}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-zinc-50"
+                  className="flex min-h-14 items-center justify-between px-4 py-3 active:bg-zinc-100"
                 >
-                  <span className="font-medium">{g.name}</span>
+                  <span className="text-base font-medium">{g.name}</span>
                   <span className="text-xs text-zinc-500">
                     {new Date(g.created_at).toLocaleDateString()}
                   </span>
@@ -73,43 +67,59 @@ export default async function GroupsPage({
         )}
       </section>
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <form action={createGroup} className="space-y-3 rounded-lg border border-zinc-200 p-4">
-          <h2 className="text-sm font-semibold">Create a group</h2>
-          <label className="block">
-            <span className="text-xs font-medium text-zinc-700">Group name</span>
-            <input
-              name="name"
-              type="text"
-              required
-              maxLength={80}
-              placeholder="e.g. Morning Run Crew"
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <button className="w-full rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
-            Create
-          </button>
-        </form>
+      <div className="space-y-4">
+        <details className="group rounded-lg border border-zinc-200 bg-white">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            <span>Create a group</span>
+            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <form action={createGroup} className="space-y-3 border-t border-zinc-200 p-4">
+            <label className="block">
+              <span className="text-xs font-medium text-zinc-700">Group name</span>
+              <input
+                name="name"
+                type="text"
+                required
+                maxLength={80}
+                placeholder="e.g. Morning Run Crew"
+                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
+              />
+            </label>
+            <SubmitButton
+              pendingLabel="Creating…"
+              className="min-h-11 w-full rounded-md bg-black px-4 py-3 text-base font-medium text-white"
+            >
+              Create
+            </SubmitButton>
+          </form>
+        </details>
 
-        <form action={joinGroupByCode} className="space-y-3 rounded-lg border border-zinc-200 p-4">
-          <h2 className="text-sm font-semibold">Join with invite code</h2>
-          <label className="block">
-            <span className="text-xs font-medium text-zinc-700">Invite code</span>
-            <input
-              name="code"
-              type="text"
-              required
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
-            />
-          </label>
-          <button className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50">
-            Join
-          </button>
-        </form>
+        <details className="group rounded-lg border border-zinc-200 bg-white">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            <span>Join with invite code</span>
+            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <form action={joinGroupByCode} className="space-y-3 border-t border-zinc-200 p-4">
+            <label className="block">
+              <span className="text-xs font-medium text-zinc-700">Invite code</span>
+              <input
+                name="code"
+                type="text"
+                required
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 font-mono text-base"
+              />
+            </label>
+            <SubmitButton
+              pendingLabel="Joining…"
+              className="min-h-11 w-full rounded-md border border-zinc-300 bg-white px-4 py-3 text-base font-medium"
+            >
+              Join
+            </SubmitButton>
+          </form>
+        </details>
       </div>
     </main>
   );

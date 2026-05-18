@@ -19,22 +19,22 @@ export function InviteLink({ url, code }: { url: string; code: string }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <code className="flex-1 truncate rounded-md bg-zinc-100 px-3 py-2 text-xs">{url}</code>
+        <code className="flex-1 truncate rounded-md bg-zinc-100 px-3 py-2.5 text-xs">{url}</code>
         <button
           type="button"
           onClick={() => copy(url, setCopiedUrl)}
-          className="shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs font-medium hover:bg-zinc-50"
+          className="min-h-11 shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium"
         >
           {copiedUrl ? "Copied" : "Copy link"}
         </button>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs text-zinc-600">Or share the code:</span>
-        <code className="rounded-md bg-zinc-100 px-2 py-1 font-mono text-xs">{code}</code>
+        <code className="rounded-md bg-zinc-100 px-2 py-1 font-mono text-sm">{code}</code>
         <button
           type="button"
           onClick={() => copy(code, setCopiedCode)}
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50"
+          className="min-h-10 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium"
         >
           {copiedCode ? "Copied" : "Copy code"}
         </button>
