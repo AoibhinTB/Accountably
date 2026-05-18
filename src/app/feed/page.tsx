@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CompletionFeed, type CompletionItemData } from "@/components/completion-item";
+import { summarizeReactions, type ReactionRow } from "@/components/reactions/constants";
 
 type GlobalFeedRow = {
   id: string;
@@ -13,6 +14,7 @@ type GlobalFeedRow = {
     group_id: string;
     groups: { id: string; name: string } | null;
   } | null;
+  reactions: ReactionRow[] | null;
 };
 
 export default async function FeedPage() {
@@ -26,7 +28,7 @@ export default async function FeedPage() {
   const { data } = await supabase
     .from("completions")
     .select(
-      "id, completed_at, note, profiles(display_name), challenges(id, title, group_id, groups(id, name))",
+      "id, completed_at, note, profiles(display_name), challenges(id, title, group_id, groups(id, name)), reactions(emoji, user_id)",
     )
     .order("completed_at", { ascending: false })
     .limit(20)
@@ -46,6 +48,7 @@ export default async function FeedPage() {
     groupHref: row.challenges?.groups
       ? `/groups/${row.challenges.groups.id}`
       : undefined,
+    reactions: summarizeReactions(row.reactions, user.id),
   }));
 
   return (
@@ -59,6 +62,7 @@ export default async function FeedPage() {
 
       <CompletionFeed
         items={items}
+        revalidatePath="/feed"
         emptyMessage="No completions yet. Once anyone in your groups logs one, it'll show up here."
       />
     </main>

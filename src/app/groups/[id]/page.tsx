@@ -7,6 +7,10 @@ import {
   CompletionFeed,
   type CompletionItemData,
 } from "@/components/completion-item";
+import {
+  summarizeReactions,
+  type ReactionRow,
+} from "@/components/reactions/constants";
 import { SubmitButton } from "@/components/submit-button";
 import { deleteGroup, updateGroup } from "../actions";
 import { InviteLink } from "./invite-link";
@@ -36,6 +40,7 @@ type ActivityRow = {
   note: string | null;
   profiles: { display_name: string } | null;
   challenges: { id: string; title: string; group_id: string } | null;
+  reactions: ReactionRow[] | null;
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -80,7 +85,7 @@ export default async function GroupPage({
   const { data: activity } = await supabase
     .from("completions")
     .select(
-      "id, completed_at, note, profiles(display_name), challenges!inner(id, title, group_id)",
+      "id, completed_at, note, profiles(display_name), challenges!inner(id, title, group_id), reactions(emoji, user_id)",
     )
     .eq("challenges.group_id", id)
     .order("completed_at", { ascending: false })
@@ -96,6 +101,7 @@ export default async function GroupPage({
     challengeHref: row.challenges
       ? `/groups/${id}/challenges/${row.challenges.id}`
       : undefined,
+    reactions: summarizeReactions(row.reactions, userData.user?.id ?? null),
   }));
 
   const h = await headers();
@@ -239,6 +245,7 @@ export default async function GroupPage({
         <h2 className="mb-3 text-sm font-semibold">Recent activity</h2>
         <CompletionFeed
           items={activityItems}
+          revalidatePath={`/groups/${id}`}
           emptyMessage="No completions yet in this group."
         />
       </section>

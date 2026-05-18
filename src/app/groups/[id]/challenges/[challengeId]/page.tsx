@@ -6,6 +6,10 @@ import {
   CompletionFeed,
   type CompletionItemData,
 } from "@/components/completion-item";
+import {
+  summarizeReactions,
+  type ReactionRow,
+} from "@/components/reactions/constants";
 import { SubmitButton } from "@/components/submit-button";
 import { deleteChallenge, updateChallenge } from "../actions";
 import { logCompletion } from "./completions/actions";
@@ -31,6 +35,7 @@ type CompletionRow = {
   note: string | null;
   user_id: string;
   profiles: { display_name: string } | null;
+  reactions: ReactionRow[] | null;
 };
 
 export default async function ChallengePage({
@@ -59,7 +64,9 @@ export default async function ChallengePage({
 
   const { data: completions } = await supabase
     .from("completions")
-    .select("id, completed_at, note, user_id, profiles(display_name)")
+    .select(
+      "id, completed_at, note, user_id, profiles(display_name), reactions(emoji, user_id)",
+    )
     .eq("challenge_id", challenge.id)
     .order("completed_at", { ascending: false })
     .returns<CompletionRow[]>();
@@ -69,6 +76,7 @@ export default async function ChallengePage({
     userName: row.profiles?.display_name ?? "Unknown",
     completedAt: row.completed_at,
     note: row.note,
+    reactions: summarizeReactions(row.reactions, userData.user?.id ?? null),
   }));
 
   return (
@@ -148,6 +156,7 @@ export default async function ChallengePage({
         </h2>
         <CompletionFeed
           items={completionItems}
+          revalidatePath={`/groups/${groupId}/challenges/${challengeId}`}
           emptyMessage="No completions yet. Be the first to log one."
         />
       </section>
