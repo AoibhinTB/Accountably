@@ -21,7 +21,7 @@ export function SubmitButton({
       {...rest}
       disabled={pending || rest.disabled}
       aria-busy={pending || undefined}
-      className={`disabled:cursor-wait disabled:opacity-60 ${className ?? ""}`}
+      className={`press disabled:cursor-wait disabled:opacity-60 ${className ?? ""}`}
     >
       {pending && pendingLabel ? pendingLabel : children}
     </button>

@@ -1,26 +1,143 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #FBF2E7;
+  --bg-deep: #E8DAC2;
+  --card: #FFFAF1;
+  --card-inset: #F6ECDC;
+  --ink: #2A1F18;
+  --ink-soft: #4A3B30;
+  --mute: #8A7868;
+  --line: rgba(42, 31, 24, 0.10);
+  --line-strong: rgba(42, 31, 24, 0.22);
+  --accent: #D8623A;
+  --accent-soft: #FBD9C5;
+  --accent2: #F2A93B;
+  --accent2-soft: #FCE7BB;
+  --good: #5B6E3F;
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-lg: 24px;
+  --density-pad: 16px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
+  --color-card: var(--card);
+  --color-card-inset: var(--card-inset);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-mute: var(--mute);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent2: var(--accent2);
+  --color-accent2-soft: var(--accent2-soft);
+  --color-good: var(--good);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-stat-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Hand-drawn squiggle underline */
+.squiggle-line {
+  display: block;
+  height: 8px;
+  color: var(--accent);
+}
+
+/* Display heading — italic-led serif */
+.h-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Mono uppercase label */
+.label {
+  font-family: var(--font-stat-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+/* Italic note / quote in display serif */
+.note {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+/* Pill — uppercase mono, soft fill */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-stat-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--card-inset);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+}
+
+/* Press feedback for taps */
+.press {
+  transition: transform 120ms ease, filter 120ms ease;
+}
+.press:active {
+  transform: scale(0.97);
+  filter: brightness(0.96);
+}
+
+/* Striped illustration placeholder */
+.stripe-placeholder {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--card-inset) 0 10px,
+    transparent 10px 20px
+  );
+  background-color: var(--card);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--mute);
+  font-family: var(--font-stat-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Avatar stack overlap */
+.avastack {
+  display: inline-flex;
+}
+.avastack > * {
+  margin-left: -8px;
+  box-shadow: 0 0 0 2px var(--card);
+  border-radius: 999px;
+}
+.avastack > *:first-child {
+  margin-left: 0;
 }

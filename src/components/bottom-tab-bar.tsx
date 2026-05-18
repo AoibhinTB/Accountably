@@ -3,42 +3,53 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+const ICON_PROPS = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.8,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+
+const FeedIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+    <path d="M4 6c4-1 12-1 16 0M4 12c4-1 12-1 16 0M4 18c4-1 8-1 11 0" {...ICON_PROPS} />
+  </svg>
+);
+
+const GroupsIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+    <circle cx="9" cy="9" r="3.4" {...ICON_PROPS} />
+    <circle cx="17" cy="11" r="2.6" {...ICON_PROPS} />
+    <path d="M3.5 19c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5M14 18c.4-1.8 1.8-3 3.2-3s2.6.8 3.3 2" {...ICON_PROPS} />
+  </svg>
+);
+
+const YouIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+    <circle cx="12" cy="8.5" r="3.6" {...ICON_PROPS} />
+    <path d="M5 20c1-3.4 3.7-5.2 7-5.2s6 1.8 7 5.2" {...ICON_PROPS} />
+  </svg>
+);
+
 const tabs = [
   {
     href: "/feed",
     label: "Feed",
     match: (p: string) => p === "/feed" || p === "/",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <line x1="4" y1="6" x2="20" y2="6" />
-        <line x1="4" y1="12" x2="20" y2="12" />
-        <line x1="4" y1="18" x2="14" y2="18" />
-      </svg>
-    ),
+    Icon: FeedIcon,
   },
   {
     href: "/groups",
     label: "Groups",
     match: (p: string) => p === "/groups" || p.startsWith("/groups/"),
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="9" cy="9" r="3" />
-        <circle cx="17" cy="10" r="2.2" />
-        <path d="M3 19c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-        <path d="M15 18c0-2 1.5-4 4-4" />
-      </svg>
-    ),
+    Icon: GroupsIcon,
   },
   {
     href: "/you",
     label: "You",
     match: (p: string) => p === "/you",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
-      </svg>
-    ),
+    Icon: YouIcon,
   },
 ];
 
@@ -51,9 +62,23 @@ export function BottomTabBar() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-x-3 z-40"
+      style={{
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)",
+      }}
     >
-      <ul className="mx-auto flex max-w-2xl">
+      <ul
+        className="mx-auto flex items-center justify-around"
+        style={{
+          maxWidth: "calc(42rem - 24px)",
+          height: 64,
+          borderRadius: 999,
+          background: "var(--ink)",
+          padding: "0 6px",
+          boxShadow:
+            "0 8px 30px rgba(42, 31, 24, 0.25), 0 0 0 1px rgba(0,0,0,0.05)",
+        }}
+      >
         {tabs.map((tab) => {
           const active = tab.match(pathname);
           return (
@@ -61,11 +86,21 @@ export function BottomTabBar() {
               <Link
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors ${
-                  active ? "text-black" : "text-zinc-500"
-                }`}
+                className="press flex flex-col items-center justify-center gap-0.5"
+                style={{
+                  minWidth: 80,
+                  padding: "8px 14px",
+                  borderRadius: 999,
+                  background: active ? "var(--accent)" : "transparent",
+                  color: active ? "#fff" : "rgba(251, 242, 231, 0.6)",
+                  fontFamily: "var(--font-stat-mono)",
+                  fontSize: 11,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                }}
               >
-                <span aria-hidden>{tab.icon}</span>
+                <tab.Icon size={20} />
                 <span>{tab.label}</span>
               </Link>
             </li>

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Squiggle } from "@/components/ui/squiggle";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -10,16 +11,44 @@ export default async function Home() {
   if (user) redirect("/feed");
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4">
+    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center gap-8 px-6">
       <div className="text-center">
-        <h1 className="text-3xl font-semibold">Accountably</h1>
-        <p className="mt-2 text-zinc-600">Group pacts with your friends.</p>
+        <h1
+          className="m-0"
+          style={{
+            fontFamily: "var(--font-display)",
+            fontStyle: "italic",
+            fontSize: 60,
+            lineHeight: 0.95,
+            color: "var(--ink)",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          accountably<span style={{ color: "var(--accent)" }}>.</span>
+        </h1>
+        <Squiggle width={100} className="mx-auto" />
+        <p
+          className="mt-4"
+          style={{ color: "var(--ink-soft)", fontSize: 18, lineHeight: 1.35 }}
+        >
+          group pacts with your friends.
+        </p>
       </div>
       <a
         href="/login"
-        className="min-h-11 inline-flex items-center justify-center rounded-md bg-black px-5 py-3 text-base font-medium text-white"
+        className="press inline-flex items-center justify-center"
+        style={{
+          minHeight: 56,
+          padding: "0 28px",
+          borderRadius: "var(--radius)",
+          background: "var(--accent)",
+          color: "#fff",
+          fontFamily: "var(--font-body)",
+          fontWeight: 600,
+          fontSize: 17,
+        }}
       >
-        Get started
+        get started →
       </a>
     </main>
   );

@@ -11,6 +11,7 @@ import {
   type ReactionRow,
 } from "@/components/reactions/constants";
 import { SubmitButton } from "@/components/submit-button";
+import { Squiggle } from "@/components/ui/squiggle";
 import { deleteChallenge, updateChallenge } from "../actions";
 import { logCompletion } from "./completions/actions";
 
@@ -71,119 +72,248 @@ export default async function ChallengePage({
     .order("completed_at", { ascending: false })
     .returns<CompletionRow[]>();
 
-  const completionItems: CompletionItemData[] = (completions ?? []).map((row) => ({
-    id: row.id,
-    userName: row.profiles?.display_name ?? "Unknown",
-    completedAt: row.completed_at,
-    note: row.note,
-    reactions: summarizeReactions(row.reactions, userData.user?.id ?? null),
-  }));
+  const completionItems: CompletionItemData[] = (completions ?? []).map(
+    (row) => ({
+      id: row.id,
+      userName: row.profiles?.display_name ?? "Unknown",
+      completedAt: row.completed_at,
+      note: row.note,
+      reactions: summarizeReactions(row.reactions, userData.user?.id ?? null),
+    }),
+  );
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 pt-6 pb-24">
-      <Link
-        href={`/groups/${groupId}`}
-        className="inline-flex min-h-10 items-center text-sm text-zinc-600"
-      >
-        ← {challenge.groups?.name ?? "Back to group"}
-      </Link>
+    <main className="mx-auto w-full max-w-2xl pt-6 pb-28">
+      <div className="flex items-center justify-between px-5">
+        <Link
+          href={`/groups/${groupId}`}
+          className="press inline-flex min-h-10 items-center text-sm"
+          style={{ color: "var(--ink-soft)" }}
+        >
+          ← {challenge.groups?.name ?? "back"}
+        </Link>
+      </div>
 
-      <header className="mt-3 mb-4">
-        <div className="mb-2 flex items-center gap-2">
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
-            {challenge.frequency}
-          </span>
+      <header className="px-6 pt-5">
+        <div className="flex items-center gap-2">
+          <span className="pill">{challenge.frequency}</span>
           {challenge.archived && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+            <span
+              className="pill"
+              style={{
+                background: "var(--accent2-soft)",
+                color: "#7A4E0F",
+                borderColor: "transparent",
+              }}
+            >
               archived
             </span>
           )}
         </div>
-        <h1 className="text-2xl font-semibold">{challenge.title}</h1>
-        <p className="mt-1 text-sm text-zinc-600">
-          Created by {challenge.profiles?.display_name ?? "Unknown"} ·{" "}
+        <h1
+          className="h-display m-0 mt-2"
+          style={{ fontSize: 44, lineHeight: 1.05 }}
+        >
+          {challenge.title}
+        </h1>
+        <Squiggle width={110} />
+        <p
+          className="mt-3"
+          style={{ color: "var(--mute)", fontSize: 14 }}
+        >
+          by {challenge.profiles?.display_name ?? "unknown"} ·{" "}
           {new Date(challenge.created_at).toLocaleDateString()}
         </p>
       </header>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+        <div
+          className="mx-5 mt-4 px-4 py-3 text-sm"
+          style={{
+            borderRadius: "var(--radius)",
+            border: "1px solid rgba(156, 31, 31, 0.3)",
+            background: "rgba(216, 98, 58, 0.1)",
+            color: "#7A1F1F",
+          }}
+        >
           {error}
         </div>
       )}
 
       {challenge.description && (
-        <p className="mb-4 whitespace-pre-wrap text-sm text-zinc-700">
-          {challenge.description}
+        <p
+          className="note mx-6 mt-4"
+          style={{
+            paddingLeft: 12,
+            borderLeft: "2px solid var(--accent)",
+            fontSize: 17,
+          }}
+        >
+          &ldquo;{challenge.description}&rdquo;
         </p>
       )}
 
-      <section className="mb-6">
+      <section className="px-5 pt-6">
         <details className="group">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-center gap-2 rounded-md bg-black px-4 py-3 text-base font-medium text-white [&::-webkit-details-marker]:hidden">
-            <span>Log completion</span>
-            <span aria-hidden className="text-zinc-300 transition-transform group-open:rotate-180">▾</span>
+          <summary
+            className="press flex min-h-16 cursor-pointer list-none items-center justify-center gap-3 [&::-webkit-details-marker]:hidden"
+            style={{
+              background: "var(--accent)",
+              color: "#fff",
+              borderRadius: "var(--radius-lg)",
+              padding: "0 24px",
+              fontFamily: "var(--font-display)",
+              fontSize: 24,
+              boxShadow: "0 8px 30px rgba(216, 98, 58, 0.35)",
+            }}
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M5 12.5l4.5 4.5L19 7" />
+            </svg>
+            <span>mark today done</span>
+            <span
+              aria-hidden
+              className="transition-transform group-open:rotate-180"
+              style={{ color: "rgba(255,255,255,0.7)", fontFamily: "var(--font-body)" }}
+            >
+              ▾
+            </span>
           </summary>
           <form
             action={logCompletion}
-            className="mt-3 space-y-3 rounded-lg border border-zinc-200 bg-white p-4"
+            className="mt-3 flex flex-col gap-3 p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
           >
             <input type="hidden" name="group_id" value={groupId} />
             <input type="hidden" name="challenge_id" value={challenge.id} />
             <label className="block">
-              <span className="text-xs font-medium text-zinc-700">Note (optional)</span>
+              <span className="label">Note (optional)</span>
               <textarea
                 name="note"
                 rows={3}
                 maxLength={500}
-                placeholder="How did it go?"
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
+                placeholder="how did it go?"
+                className="mt-1.5 w-full resize-none outline-none"
+                style={{
+                  ...inputStyle,
+                  height: "auto",
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                  fontFamily: "var(--font-display)",
+                  fontStyle: "italic",
+                  fontSize: 17,
+                }}
               />
             </label>
             <SubmitButton
-              pendingLabel="Logging…"
-              className="min-h-11 w-full rounded-md bg-black px-4 py-3 text-base font-medium text-white"
+              pendingLabel="logging…"
+              className="w-full"
+              style={primaryStyle}
             >
-              Log it
+              log it
             </SubmitButton>
           </form>
         </details>
       </section>
 
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold">
-          Completions{completionItems.length ? ` (${completionItems.length})` : ""}
-        </h2>
+      <section className="px-5 pt-6">
+        <div className="label mb-2">
+          completions{completionItems.length ? ` (${completionItems.length})` : ""}
+        </div>
         <CompletionFeed
           items={completionItems}
           revalidatePath={`/groups/${groupId}/challenges/${challengeId}`}
-          emptyMessage="No completions yet. Be the first to log one."
+          emptyMessage="no completions yet. be the first."
         />
       </section>
 
-      <section className="mb-4">
+      <section className="px-5 pt-5">
         <details className="group">
-          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 text-base font-medium [&::-webkit-details-marker]:hidden">
-            <span>Schedule</span>
-            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
+          <summary
+            className="press inline-flex min-h-12 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "0 18px",
+              fontFamily: "var(--font-body)",
+              fontWeight: 500,
+              color: "var(--ink)",
+            }}
+          >
+            <span>schedule</span>
+            <span
+              aria-hidden
+              className="transition-transform group-open:rotate-180"
+              style={{ color: "var(--mute)" }}
+            >
+              ▾
+            </span>
           </summary>
-          <dl className="mt-3 grid grid-cols-2 gap-3 rounded-lg border border-zinc-200 bg-white p-4 text-sm">
+          <dl
+            className="mt-3 grid grid-cols-2 gap-3 p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              fontSize: 14,
+            }}
+          >
             <div>
-              <dt className="text-xs font-medium text-zinc-500">Frequency</dt>
-              <dd className="mt-0.5 capitalize">{challenge.frequency}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-zinc-500">Starts</dt>
-              <dd className="mt-0.5">
-                {new Date(challenge.start_date).toLocaleDateString()}
+              <dt className="label">Frequency</dt>
+              <dd
+                className="mt-1 capitalize"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 20,
+                  lineHeight: 1.1,
+                }}
+              >
+                {challenge.frequency}
               </dd>
             </div>
             <div>
-              <dt className="text-xs font-medium text-zinc-500">Ends</dt>
-              <dd className="mt-0.5">
+              <dt className="label">Starts</dt>
+              <dd
+                className="mt-1"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 20,
+                  lineHeight: 1.1,
+                }}
+              >
+                {new Date(challenge.start_date).toLocaleDateString()}
+              </dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="label">Ends</dt>
+              <dd
+                className="mt-1"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 20,
+                  lineHeight: 1.1,
+                  fontStyle: challenge.end_date ? "normal" : "italic",
+                  color: challenge.end_date ? "var(--ink)" : "var(--mute)",
+                }}
+              >
                 {challenge.end_date
                   ? new Date(challenge.end_date).toLocaleDateString()
-                  : "Runs indefinitely"}
+                  : "runs indefinitely"}
               </dd>
             </div>
           </dl>
@@ -191,114 +321,200 @@ export default async function ChallengePage({
       </section>
 
       {isCreator && (
-        <details className="group">
-          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 text-base font-medium [&::-webkit-details-marker]:hidden">
-            <span>Edit challenge</span>
-            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
-          </summary>
-
-          <section className="mt-3 rounded-lg border border-zinc-200 bg-white p-4">
-            <form action={updateChallenge} className="mb-6 space-y-3">
-              <input type="hidden" name="group_id" value={groupId} />
-              <input type="hidden" name="challenge_id" value={challenge.id} />
-
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-700">Title</span>
-                <input
-                  name="title"
-                  type="text"
-                  required
-                  maxLength={120}
-                  defaultValue={challenge.title}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-700">Description (optional)</span>
-                <textarea
-                  name="description"
-                  rows={2}
-                  maxLength={500}
-                  defaultValue={challenge.description ?? ""}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
-                />
-              </label>
-
-              <fieldset>
-                <legend className="text-xs font-medium text-zinc-700">Frequency</legend>
-                <div className="mt-2 flex gap-4 text-base">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="frequency"
-                      value="daily"
-                      defaultChecked={challenge.frequency === "daily"}
-                    />
-                    Daily
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="frequency"
-                      value="weekly"
-                      defaultChecked={challenge.frequency === "weekly"}
-                    />
-                    Weekly
-                  </label>
-                </div>
-              </fieldset>
-
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-700">Start date</span>
-                <input
-                  name="start_date"
-                  type="date"
-                  required
-                  defaultValue={challenge.start_date}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-700">End date (optional)</span>
-                <input
-                  name="end_date"
-                  type="date"
-                  defaultValue={challenge.end_date ?? ""}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
-                />
-              </label>
-
-              <SubmitButton
-                pendingLabel="Saving…"
-                className="min-h-11 rounded-md bg-black px-4 py-3 text-base font-medium text-white"
+        <section className="px-5 pt-5">
+          <details className="group">
+            <summary
+              className="press inline-flex min-h-12 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "0 18px",
+                fontFamily: "var(--font-body)",
+                fontWeight: 500,
+                color: "var(--ink)",
+              }}
+            >
+              <span>edit challenge</span>
+              <span
+                aria-hidden
+                className="transition-transform group-open:rotate-180"
+                style={{ color: "var(--mute)" }}
               >
-                Save changes
-              </SubmitButton>
-            </form>
-
-            <div className="rounded-md border border-red-200 bg-red-50 p-3">
-              <p className="mb-3 text-xs text-red-800">
-                Deleting this challenge will also remove all of its completions
-                and reactions. This cannot be undone.
-              </p>
-              <ConfirmForm
-                action={deleteChallenge}
-                message={`Delete "${challenge.title}"? All completions and reactions for this challenge will be permanently deleted. This cannot be undone.`}
-              >
+                ▾
+              </span>
+            </summary>
+            <div
+              className="mt-3 p-4"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+              }}
+            >
+              <form action={updateChallenge} className="mb-5 flex flex-col gap-3">
                 <input type="hidden" name="group_id" value={groupId} />
                 <input type="hidden" name="challenge_id" value={challenge.id} />
+                <label className="block">
+                  <span className="label">Title</span>
+                  <input
+                    name="title"
+                    type="text"
+                    required
+                    maxLength={120}
+                    defaultValue={challenge.title}
+                    className="mt-1.5 w-full outline-none"
+                    style={inputStyle}
+                  />
+                </label>
+                <label className="block">
+                  <span className="label">Description (optional)</span>
+                  <textarea
+                    name="description"
+                    rows={2}
+                    maxLength={500}
+                    defaultValue={challenge.description ?? ""}
+                    className="mt-1.5 w-full resize-none outline-none"
+                    style={{
+                      ...inputStyle,
+                      height: "auto",
+                      paddingTop: 12,
+                      paddingBottom: 12,
+                      fontFamily: "var(--font-display)",
+                      fontStyle: "italic",
+                    }}
+                  />
+                </label>
+                <fieldset>
+                  <legend className="label">Frequency</legend>
+                  <div className="mt-2 flex gap-3">
+                    {(["daily", "weekly"] as const).map((freq) => (
+                      <label
+                        key={freq}
+                        className="press inline-flex flex-1 items-center justify-center gap-2 cursor-pointer"
+                        style={{
+                          minHeight: 44,
+                          borderRadius: "var(--radius)",
+                          border: "1.5px solid var(--line)",
+                          background: "var(--card-inset)",
+                          padding: "0 14px",
+                          fontFamily: "var(--font-body)",
+                          fontSize: 15,
+                          color: "var(--ink)",
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="frequency"
+                          value={freq}
+                          defaultChecked={challenge.frequency === freq}
+                          className="accent-[color:var(--accent)]"
+                        />
+                        {freq}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="label">Start date</span>
+                    <input
+                      name="start_date"
+                      type="date"
+                      required
+                      defaultValue={challenge.start_date}
+                      className="mt-1.5 w-full outline-none"
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="label">End date (optional)</span>
+                    <input
+                      name="end_date"
+                      type="date"
+                      defaultValue={challenge.end_date ?? ""}
+                      className="mt-1.5 w-full outline-none"
+                      style={inputStyle}
+                    />
+                  </label>
+                </div>
                 <SubmitButton
-                  pendingLabel="Deleting…"
-                  className="min-h-11 rounded-md border border-red-300 bg-white px-4 py-3 text-base font-medium text-red-700"
+                  pendingLabel="saving…"
+                  style={primaryStyle}
                 >
-                  Delete challenge
+                  save changes
                 </SubmitButton>
-              </ConfirmForm>
+              </form>
+
+              <div
+                className="p-3"
+                style={{
+                  borderRadius: "var(--radius)",
+                  border: "1px solid rgba(156, 31, 31, 0.25)",
+                  background: "rgba(216, 98, 58, 0.06)",
+                }}
+              >
+                <p
+                  className="mb-3 text-xs"
+                  style={{ color: "#7A1F1F", lineHeight: 1.4 }}
+                >
+                  deleting this challenge also removes all of its completions
+                  and reactions. this can&apos;t be undone.
+                </p>
+                <ConfirmForm
+                  action={deleteChallenge}
+                  message={`Delete "${challenge.title}"? All completions and reactions for this challenge will be permanently deleted. This cannot be undone.`}
+                >
+                  <input type="hidden" name="group_id" value={groupId} />
+                  <input type="hidden" name="challenge_id" value={challenge.id} />
+                  <SubmitButton
+                    pendingLabel="deleting…"
+                    style={dangerStyle}
+                  >
+                    delete challenge
+                  </SubmitButton>
+                </ConfirmForm>
+              </div>
             </div>
-          </section>
-        </details>
+          </details>
+        </section>
       )}
     </main>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  height: 52,
+  background: "var(--card-inset)",
+  border: "1.5px solid var(--line)",
+  borderRadius: "var(--radius)",
+  padding: "0 16px",
+  fontSize: 16,
+  color: "var(--ink)",
+  fontFamily: "var(--font-body)",
+};
+
+const primaryStyle: React.CSSProperties = {
+  minHeight: 52,
+  background: "var(--accent)",
+  color: "#fff",
+  borderRadius: "var(--radius)",
+  border: "none",
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
+  fontSize: 16,
+  padding: "0 22px",
+};
+
+const dangerStyle: React.CSSProperties = {
+  minHeight: 44,
+  background: "var(--card)",
+  color: "#9C1F1F",
+  borderRadius: "var(--radius)",
+  border: "1.5px solid rgba(156, 31, 31, 0.4)",
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
+  fontSize: 14,
+  padding: "0 18px",
+};

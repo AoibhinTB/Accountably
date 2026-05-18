@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ReactionBar } from "./reactions/reaction-bar";
 import type { ReactionSummary } from "./reactions/constants";
+import { Avatar } from "./ui/avatar";
 
 export type CompletionItemData = {
   id: string;
@@ -16,7 +17,7 @@ export type CompletionItemData = {
 
 const formatCompletedAt = (iso: string) => {
   const d = new Date(iso);
-  return `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], {
+  return `${d.toLocaleDateString()} · ${d.toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
   })}`;
@@ -30,51 +31,97 @@ export function CompletionItem({
   revalidatePath: string;
 }) {
   return (
-    <li className="relative px-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-1.5 text-sm">
-        <span className="font-medium text-zinc-900">{item.userName}</span>
-        {item.challengeName && (
-          <>
-            <span className="text-zinc-400">·</span>
-            {item.challengeHref ? (
-              <Link
-                href={item.challengeHref}
-                className="font-medium text-zinc-700 underline decoration-zinc-300 underline-offset-2"
-              >
-                {item.challengeName}
-              </Link>
-            ) : (
-              <span className="font-medium text-zinc-700">{item.challengeName}</span>
-            )}
-          </>
+    <li className="relative">
+      <div
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius)",
+          padding: "var(--density-pad)",
+          boxShadow: "0 1px 0 rgba(42, 31, 24, 0.04)",
+          position: "relative",
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <Avatar name={item.userName} size={38} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-1.5">
+              <span style={{ fontWeight: 600 }}>{item.userName}</span>
+              {item.challengeName && (
+                <>
+                  <span style={{ color: "var(--mute)", fontSize: 13 }}>·</span>
+                  {item.challengeHref ? (
+                    <Link
+                      href={item.challengeHref}
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontStyle: "italic",
+                        fontSize: 17,
+                        color: "var(--ink)",
+                        textDecoration: "underline",
+                        textDecorationColor: "var(--accent)",
+                        textDecorationThickness: 1.5,
+                        textUnderlineOffset: 3,
+                      }}
+                    >
+                      {item.challengeName}
+                    </Link>
+                  ) : (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontStyle: "italic",
+                        fontSize: 17,
+                        color: "var(--ink)",
+                      }}
+                    >
+                      {item.challengeName}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="label mt-0.5 flex items-baseline gap-1.5">
+              <span>{formatCompletedAt(item.completedAt)}</span>
+              {item.groupName && item.groupHref && (
+                <>
+                  <span aria-hidden>·</span>
+                  <Link
+                    href={item.groupHref}
+                    style={{ color: "var(--mute)" }}
+                  >
+                    {item.groupName}
+                  </Link>
+                </>
+              )}
+              {item.groupName && !item.groupHref && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>{item.groupName}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {item.note && (
+          <div
+            className="note mt-3"
+            style={{
+              paddingLeft: 12,
+              borderLeft: "2px solid var(--accent)",
+            }}
+          >
+            &ldquo;{item.note}&rdquo;
+          </div>
         )}
-        {item.groupName && (
-          <>
-            <span className="text-zinc-400">in</span>
-            {item.groupHref ? (
-              <Link
-                href={item.groupHref}
-                className="text-zinc-600 underline decoration-zinc-300 underline-offset-2"
-              >
-                {item.groupName}
-              </Link>
-            ) : (
-              <span className="text-zinc-600">{item.groupName}</span>
-            )}
-          </>
-        )}
+
+        <ReactionBar
+          completionId={item.id}
+          reactions={item.reactions}
+          revalidatePath={revalidatePath}
+        />
       </div>
-      <div className="mt-0.5 text-xs text-zinc-500">
-        {formatCompletedAt(item.completedAt)}
-      </div>
-      {item.note && (
-        <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{item.note}</p>
-      )}
-      <ReactionBar
-        completionId={item.id}
-        reactions={item.reactions}
-        revalidatePath={revalidatePath}
-      />
     </li>
   );
 }
@@ -90,13 +137,21 @@ export function CompletionFeed({
 }) {
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-zinc-300 px-6 py-8 text-center">
-        <p className="text-sm text-zinc-600">{emptyMessage}</p>
+      <div
+        className="px-6 py-8 text-center"
+        style={{
+          borderRadius: "var(--radius)",
+          border: "1.5px dashed var(--line-strong)",
+        }}
+      >
+        <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+          {emptyMessage}
+        </p>
       </div>
     );
   }
   return (
-    <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
+    <ul className="flex flex-col gap-3">
       {items.map((item) => (
         <CompletionItem
           key={item.id}

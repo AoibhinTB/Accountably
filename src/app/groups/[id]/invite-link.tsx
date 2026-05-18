@@ -17,26 +17,76 @@ export function InviteLink({ url, code }: { url: string; code: string }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <code className="flex-1 truncate rounded-md bg-zinc-100 px-3 py-2.5 text-xs">{url}</code>
+        <code
+          className="flex-1 truncate"
+          style={{
+            background: "var(--card-inset)",
+            border: "1px solid var(--line)",
+            borderRadius: "var(--radius-sm)",
+            padding: "10px 12px",
+            fontFamily: "var(--font-stat-mono)",
+            fontSize: 12,
+            color: "var(--ink-soft)",
+          }}
+        >
+          {url}
+        </code>
         <button
           type="button"
           onClick={() => copy(url, setCopiedUrl)}
-          className="min-h-11 shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium"
+          className="press"
+          style={{
+            minHeight: 44,
+            flexShrink: 0,
+            padding: "0 14px",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--ink)",
+            color: "var(--bg)",
+            fontFamily: "var(--font-stat-mono)",
+            fontSize: 11,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            fontWeight: 500,
+          }}
         >
-          {copiedUrl ? "Copied" : "Copy link"}
+          {copiedUrl ? "copied" : "copy"}
         </button>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-xs text-zinc-600">Or share the code:</span>
-        <code className="rounded-md bg-zinc-100 px-2 py-1 font-mono text-sm">{code}</code>
+        <span className="label">or share the code:</span>
+        <code
+          style={{
+            background: "var(--card-inset)",
+            borderRadius: "var(--radius-sm)",
+            padding: "4px 10px",
+            fontFamily: "var(--font-stat-mono)",
+            fontSize: 13,
+            color: "var(--ink)",
+          }}
+        >
+          {code}
+        </code>
         <button
           type="button"
           onClick={() => copy(code, setCopiedCode)}
-          className="min-h-10 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium"
+          className="press"
+          style={{
+            minHeight: 34,
+            padding: "0 12px",
+            borderRadius: "var(--radius-sm)",
+            background: "transparent",
+            border: "1px solid var(--line-strong)",
+            color: "var(--ink-soft)",
+            fontFamily: "var(--font-stat-mono)",
+            fontSize: 11,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            fontWeight: 500,
+          }}
         >
-          {copiedCode ? "Copied" : "Copy code"}
+          {copiedCode ? "copied" : "copy"}
         </button>
       </div>
     </div>

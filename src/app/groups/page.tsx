@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
+import { Squiggle } from "@/components/ui/squiggle";
 import { createGroup, joinGroupByCode } from "./actions";
 
 type Membership = {
@@ -10,6 +11,16 @@ type Membership = {
     name: string;
     created_at: string;
   } | null;
+};
+
+const stickerForName = (name: string) => {
+  const trimmed = name.trim();
+  return trimmed[0]?.toUpperCase() || "?";
+};
+
+const tiltClass = (idx: number) => {
+  const r = idx % 3;
+  return r === 0 ? "-rotate-2" : r === 1 ? "rotate-2" : "";
 };
 
 export default async function GroupsPage({
@@ -29,79 +40,186 @@ export default async function GroupsPage({
   const groups = (memberships ?? []).flatMap((m) => (m.groups ? [m.groups] : []));
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 pt-8 pb-24">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold">Your groups</h1>
-        <p className="text-sm text-zinc-600">Pacts you&apos;ve made with friends.</p>
+    <main className="mx-auto w-full max-w-2xl px-5 pt-10 pb-28">
+      <header className="flex items-baseline justify-between">
+        <div>
+          <h1 className="h-display m-0" style={{ fontSize: 40, lineHeight: 1 }}>
+            <span style={{ fontStyle: "italic" }}>your</span> groups
+          </h1>
+          <Squiggle width={60} />
+        </div>
       </header>
 
       {error && (
-        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+        <div
+          className="mt-6 px-4 py-3 text-sm"
+          style={{
+            borderRadius: "var(--radius)",
+            border: "1px solid rgba(156, 31, 31, 0.3)",
+            background: "rgba(216, 98, 58, 0.1)",
+            color: "#7A1F1F",
+          }}
+        >
           {error}
         </div>
       )}
 
-      <section className="mb-6">
+      <section className="mt-6 flex flex-col gap-3.5">
         {groups.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-zinc-300 px-6 py-8 text-center">
-            <p className="text-sm text-zinc-600">
-              You&apos;re not in any groups yet. Create one or join with an invite code below.
+          <div
+            className="px-6 py-8 text-center"
+            style={{
+              borderRadius: "var(--radius)",
+              border: "1.5px dashed var(--line-strong)",
+            }}
+          >
+            <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+              you&apos;re not in any groups yet. make a group or join with an invite code below.
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
-            {groups.map((g) => (
-              <li key={g.id}>
-                <Link
-                  href={`/groups/${g.id}`}
-                  className="flex min-h-14 items-center justify-between px-4 py-3 active:bg-zinc-100"
+          groups.map((g, i) => (
+            <Link
+              key={g.id}
+              href={`/groups/${g.id}`}
+              className="press flex items-center gap-3.5"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "var(--density-pad)",
+              }}
+            >
+              <div
+                className={tiltClass(i)}
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  background: "var(--accent-soft)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 28,
+                  color: "var(--accent)",
+                  boxShadow: "0 2px 0 var(--line)",
+                  flexShrink: 0,
+                }}
+                aria-hidden
+              >
+                {stickerForName(g.name)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 22,
+                    lineHeight: 1.1,
+                    color: "var(--ink)",
+                  }}
                 >
-                  <span className="text-base font-medium">{g.name}</span>
-                  <span className="text-xs text-zinc-500">
-                    {new Date(g.created_at).toLocaleDateString()}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  {g.name}
+                </div>
+                <div className="label mt-1">
+                  started {new Date(g.created_at).toLocaleDateString()}
+                </div>
+              </div>
+              <span style={{ color: "var(--mute)" }} aria-hidden>→</span>
+            </Link>
+          ))
         )}
       </section>
 
-      <div className="space-y-4">
-        <details className="group rounded-lg border border-zinc-200 bg-white">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            <span>Create a group</span>
-            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
+      <section className="mt-5 flex flex-col gap-3">
+        <details className="group" open={groups.length === 0}>
+          <summary
+            className="press flex min-h-14 cursor-pointer list-none items-center justify-center gap-2 [&::-webkit-details-marker]:hidden"
+            style={{
+              background: "var(--accent)",
+              color: "#fff",
+              borderRadius: "var(--radius)",
+              padding: "0 22px",
+              fontFamily: "var(--font-body)",
+              fontWeight: 600,
+              fontSize: 16,
+              boxShadow: "0 4px 14px rgba(216, 98, 58, 0.25)",
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>+</span>
+            <span>make a group</span>
+            <span
+              className="transition-transform group-open:rotate-180"
+              style={{ color: "rgba(255,255,255,0.7)" }}
+              aria-hidden
+            >
+              ▾
+            </span>
           </summary>
-          <form action={createGroup} className="space-y-3 border-t border-zinc-200 p-4">
+          <form
+            action={createGroup}
+            className="mt-2 flex flex-col gap-3 p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
             <label className="block">
-              <span className="text-xs font-medium text-zinc-700">Group name</span>
+              <span className="label">Group name</span>
               <input
                 name="name"
                 type="text"
                 required
                 maxLength={80}
                 placeholder="e.g. Morning Run Crew"
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
+                className="mt-1.5 w-full outline-none"
+                style={inputStyle}
               />
             </label>
             <SubmitButton
-              pendingLabel="Creating…"
-              className="min-h-11 w-full rounded-md bg-black px-4 py-3 text-base font-medium text-white"
+              pendingLabel="creating…"
+              className="w-full"
+              style={primaryStyle}
             >
-              Create
+              create group
             </SubmitButton>
           </form>
         </details>
 
-        <details className="group rounded-lg border border-zinc-200 bg-white">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            <span>Join with invite code</span>
-            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
+        <details className="group">
+          <summary
+            className="press flex min-h-14 cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "0 var(--density-pad)",
+              fontFamily: "var(--font-body)",
+              fontWeight: 600,
+              color: "var(--ink)",
+            }}
+          >
+            <span>join with code</span>
+            <span
+              className="transition-transform group-open:rotate-180"
+              style={{ color: "var(--mute)" }}
+              aria-hidden
+            >
+              ▾
+            </span>
           </summary>
-          <form action={joinGroupByCode} className="space-y-3 border-t border-zinc-200 p-4">
+          <form
+            action={joinGroupByCode}
+            className="mt-2 flex flex-col gap-3 p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
             <label className="block">
-              <span className="text-xs font-medium text-zinc-700">Invite code</span>
+              <span className="label">Invite code</span>
               <input
                 name="code"
                 type="text"
@@ -109,18 +227,53 @@ export default async function GroupsPage({
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 font-mono text-base"
+                className="mt-1.5 w-full outline-none"
+                style={{ ...inputStyle, fontFamily: "var(--font-stat-mono)" }}
               />
             </label>
             <SubmitButton
-              pendingLabel="Joining…"
-              className="min-h-11 w-full rounded-md border border-zinc-300 bg-white px-4 py-3 text-base font-medium"
+              pendingLabel="joining…"
+              className="w-full"
+              style={ghostStyle}
             >
-              Join
+              join
             </SubmitButton>
           </form>
         </details>
-      </div>
+      </section>
     </main>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  height: 52,
+  background: "var(--card-inset)",
+  border: "1.5px solid var(--line)",
+  borderRadius: "var(--radius)",
+  padding: "0 16px",
+  fontSize: 16,
+  color: "var(--ink)",
+  fontFamily: "var(--font-body)",
+};
+
+const primaryStyle: React.CSSProperties = {
+  minHeight: 52,
+  background: "var(--accent)",
+  color: "#fff",
+  borderRadius: "var(--radius)",
+  border: "none",
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
+  fontSize: 16,
+};
+
+const ghostStyle: React.CSSProperties = {
+  minHeight: 52,
+  background: "transparent",
+  color: "var(--ink)",
+  borderRadius: "var(--radius)",
+  border: "1.5px solid var(--line-strong)",
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
+  fontSize: 16,
+};

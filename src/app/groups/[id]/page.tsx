@@ -12,6 +12,7 @@ import {
   type ReactionRow,
 } from "@/components/reactions/constants";
 import { SubmitButton } from "@/components/submit-button";
+import { Avatar } from "@/components/ui/avatar";
 import { deleteGroup, updateGroup } from "../actions";
 import { InviteLink } from "./invite-link";
 import { createChallenge } from "./challenges/actions";
@@ -44,6 +45,9 @@ type ActivityRow = {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+const stickerForName = (name: string) =>
+  name.trim()[0]?.toUpperCase() || "?";
 
 export default async function GroupPage({
   params,
@@ -110,53 +114,130 @@ export default async function GroupPage({
   const inviteUrl = `${proto}://${host}/join/${group.invite_code}`;
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 pt-6 pb-24">
-      <Link
-        href="/groups"
-        className="inline-flex min-h-10 items-center text-sm text-zinc-600"
-      >
-        ← All groups
-      </Link>
+    <main className="mx-auto w-full max-w-2xl pt-6 pb-28">
+      <div className="px-5">
+        <Link
+          href="/groups"
+          className="press inline-flex min-h-10 items-center text-sm"
+          style={{ color: "var(--ink-soft)" }}
+        >
+          ← all groups
+        </Link>
+      </div>
 
-      <header className="mt-3 mb-6">
-        <h1 className="text-2xl font-semibold">{group.name}</h1>
-        <p className="text-sm text-zinc-600">
-          Created {new Date(group.created_at).toLocaleDateString()}
-        </p>
-      </header>
+      <section
+        className="mx-5 mt-3 px-6 pt-8 pb-7 text-center"
+        style={{
+          background: "var(--accent2-soft)",
+          borderRadius: "var(--radius-lg)",
+          position: "relative",
+        }}
+      >
+        <div
+          className="-rotate-2 mx-auto mb-3 flex items-center justify-center"
+          style={{
+            width: 78,
+            height: 78,
+            borderRadius: 22,
+            background: "var(--card)",
+            color: "var(--accent)",
+            fontFamily: "var(--font-display)",
+            fontSize: 42,
+            boxShadow: "0 4px 0 rgba(42,31,24,0.08)",
+          }}
+          aria-hidden
+        >
+          {stickerForName(group.name)}
+        </div>
+        <h1 className="h-display m-0" style={{ fontSize: 32 }}>
+          {group.name}
+        </h1>
+        <div
+          className="mt-2"
+          style={{ color: "var(--mute)", fontSize: 13 }}
+        >
+          started {new Date(group.created_at).toLocaleDateString()}
+        </div>
+        <div className="mt-4 flex items-center justify-center gap-2.5">
+          {members && members.length > 0 && (
+            <div className="avastack">
+              {members.slice(0, 5).map((m) => (
+                <Avatar
+                  key={m.user_id}
+                  name={m.profiles?.display_name ?? "?"}
+                  size={28}
+                />
+              ))}
+            </div>
+          )}
+          {members && members.length > 5 && (
+            <span className="label">+{members.length - 5}</span>
+          )}
+        </div>
+      </section>
 
       {error && (
-        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+        <div
+          className="mx-5 mt-5 px-4 py-3 text-sm"
+          style={{
+            borderRadius: "var(--radius)",
+            border: "1px solid rgba(156, 31, 31, 0.3)",
+            background: "rgba(216, 98, 58, 0.1)",
+            color: "#7A1F1F",
+          }}
+        >
           {error}
         </div>
       )}
 
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold">
-          Challenges{challenges ? ` (${challenges.length})` : ""}
-        </h2>
+      <section className="px-5 pt-7">
+        <div className="label mb-2">the pact</div>
         {!challenges || challenges.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-zinc-300 px-6 py-6 text-center">
-            <p className="text-sm text-zinc-600">
-              No challenges yet. Start your first pact below.
+          <div
+            className="px-6 py-6 text-center"
+            style={{
+              borderRadius: "var(--radius)",
+              border: "1.5px dashed var(--line-strong)",
+            }}
+          >
+            <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+              no challenges yet. start your first pact below.
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
+          <ul className="flex flex-col gap-2.5">
             {challenges.map((c) => (
               <li key={c.id}>
                 <Link
                   href={`/groups/${group.id}/challenges/${c.id}`}
-                  className="flex min-h-14 items-center justify-between px-4 py-3 active:bg-zinc-100"
+                  className="press flex items-center justify-between gap-3"
+                  style={{
+                    background: "var(--card)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--radius)",
+                    padding: "var(--density-pad)",
+                  }}
                 >
                   <div>
-                    <div className="text-base font-medium">{c.title}</div>
-                    <div className="text-xs text-zinc-500">
+                    <div
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 22,
+                        lineHeight: 1.1,
+                        color: "var(--ink)",
+                      }}
+                    >
+                      {c.title}
+                    </div>
+                    <div
+                      className="mt-1"
+                      style={{ color: "var(--mute)", fontSize: 13 }}
+                    >
                       {c.frequency} · starts {new Date(c.start_date).toLocaleDateString()}
                       {c.end_date && ` · ends ${new Date(c.end_date).toLocaleDateString()}`}
                     </div>
                   </div>
-                  <span className="text-zinc-400">→</span>
+                  <span style={{ color: "var(--mute)" }} aria-hidden>→</span>
                 </Link>
               </li>
             ))}
@@ -164,180 +245,350 @@ export default async function GroupPage({
         )}
       </section>
 
-      <section className="mb-6">
+      <section className="px-5 pt-5">
         <details className="group">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-2 rounded-md bg-black px-4 py-3 text-base font-medium text-white [&::-webkit-details-marker]:hidden">
-            <span>New challenge</span>
-            <span aria-hidden className="text-zinc-300 transition-transform group-open:rotate-180">▾</span>
+          <summary
+            className="press flex min-h-14 cursor-pointer list-none items-center justify-center gap-2 [&::-webkit-details-marker]:hidden"
+            style={{
+              background: "var(--accent)",
+              color: "#fff",
+              borderRadius: "var(--radius)",
+              padding: "0 22px",
+              fontFamily: "var(--font-body)",
+              fontWeight: 600,
+              fontSize: 16,
+            }}
+          >
+            <span>new challenge</span>
+            <span
+              aria-hidden
+              className="transition-transform group-open:rotate-180"
+              style={{ color: "rgba(255,255,255,0.7)" }}
+            >
+              ▾
+            </span>
           </summary>
           <form
             action={createChallenge}
-            className="mt-3 space-y-3 rounded-lg border border-zinc-200 bg-white p-4"
+            className="mt-3 flex flex-col gap-3 p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
           >
             <input type="hidden" name="group_id" value={group.id} />
-
             <label className="block">
-              <span className="text-xs font-medium text-zinc-700">Title</span>
+              <span className="label">Title</span>
               <input
                 name="title"
                 type="text"
                 required
                 maxLength={120}
                 placeholder="e.g. Meditate 10 minutes"
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
+                className="mt-1.5 w-full outline-none"
+                style={inputStyle}
               />
             </label>
-
             <label className="block">
-              <span className="text-xs font-medium text-zinc-700">Description (optional)</span>
+              <span className="label">Description (optional)</span>
               <textarea
                 name="description"
                 rows={2}
                 maxLength={500}
-                placeholder="What does counting count?"
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
+                placeholder="what does counting count?"
+                className="mt-1.5 w-full resize-none outline-none"
+                style={{
+                  ...inputStyle,
+                  height: "auto",
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                  fontFamily: "var(--font-display)",
+                  fontStyle: "italic",
+                }}
               />
             </label>
-
             <fieldset>
-              <legend className="text-xs font-medium text-zinc-700">Frequency</legend>
-              <div className="mt-2 flex gap-4 text-base">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="frequency" value="daily" defaultChecked />
-                  Daily
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="frequency" value="weekly" />
-                  Weekly
-                </label>
+              <legend className="label">Frequency</legend>
+              <div className="mt-2 flex gap-3">
+                {(["daily", "weekly"] as const).map((freq, i) => (
+                  <label
+                    key={freq}
+                    className="press inline-flex flex-1 items-center justify-center gap-2 cursor-pointer"
+                    style={{
+                      minHeight: 44,
+                      borderRadius: "var(--radius)",
+                      border: "1.5px solid var(--line)",
+                      background: "var(--card-inset)",
+                      padding: "0 14px",
+                      fontFamily: "var(--font-body)",
+                      fontSize: 15,
+                      color: "var(--ink)",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="frequency"
+                      value={freq}
+                      defaultChecked={i === 0}
+                      className="accent-[color:var(--accent)]"
+                    />
+                    {freq}
+                  </label>
+                ))}
               </div>
             </fieldset>
-
-            <label className="block">
-              <span className="text-xs font-medium text-zinc-700">Start date</span>
-              <input
-                name="start_date"
-                type="date"
-                defaultValue={today()}
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-zinc-700">End date (optional)</span>
-              <input
-                name="end_date"
-                type="date"
-                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
-              />
-            </label>
-
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="label">Start date</span>
+                <input
+                  name="start_date"
+                  type="date"
+                  defaultValue={today()}
+                  className="mt-1.5 w-full outline-none"
+                  style={inputStyle}
+                />
+              </label>
+              <label className="block">
+                <span className="label">End date (optional)</span>
+                <input
+                  name="end_date"
+                  type="date"
+                  className="mt-1.5 w-full outline-none"
+                  style={inputStyle}
+                />
+              </label>
+            </div>
             <SubmitButton
-              pendingLabel="Creating…"
-              className="min-h-11 w-full rounded-md bg-black px-4 py-3 text-base font-medium text-white"
+              pendingLabel="creating…"
+              className="w-full"
+              style={primaryStyle}
             >
-              Create challenge
+              start the pact
             </SubmitButton>
           </form>
         </details>
       </section>
 
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold">Recent activity</h2>
+      <section className="px-5 pt-7">
+        <div className="label mb-2">recent activity</div>
         <CompletionFeed
           items={activityItems}
           revalidatePath={`/groups/${id}`}
-          emptyMessage="No completions yet in this group."
+          emptyMessage="no completions yet in this group."
         />
       </section>
 
-      <section className="mb-6">
+      <section className="px-5 pt-5">
         <details className="group">
-          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 text-base font-medium [&::-webkit-details-marker]:hidden">
-            <span>Invite friends</span>
-            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
+          <summary
+            className="press flex min-h-12 cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "0 var(--density-pad)",
+              fontFamily: "var(--font-body)",
+              fontWeight: 500,
+              color: "var(--ink)",
+            }}
+          >
+            <span>invite friends</span>
+            <span
+              aria-hidden
+              className="transition-transform group-open:rotate-180"
+              style={{ color: "var(--mute)" }}
+            >
+              ▾
+            </span>
           </summary>
-          <div className="mt-3 rounded-lg border border-zinc-200 bg-white p-4">
-            <p className="mb-3 text-xs text-zinc-600">
-              Anyone with this link can join the group.
+          <div
+            className="mt-3 p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            <p
+              className="mb-3 text-xs"
+              style={{ color: "var(--mute)" }}
+            >
+              anyone with this link can join the group.
             </p>
             <InviteLink url={inviteUrl} code={group.invite_code} />
           </div>
         </details>
       </section>
 
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold">
-          Members{members ? ` (${members.length})` : ""}
-        </h2>
-        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
-          {(members ?? []).map((m) => (
-            <li key={m.user_id} className="flex min-h-14 items-center justify-between px-4 py-3">
-              <span className="text-base font-medium">
-                {m.profiles?.display_name ?? "Unknown"}
-                {m.user_id === group.created_by && (
-                  <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
-                    creator
-                  </span>
-                )}
-              </span>
-              <span className="text-xs text-zinc-500">
-                joined {new Date(m.joined_at).toLocaleDateString()}
-              </span>
+      <section className="px-5 pt-5">
+        <div className="label mb-2">members ({members?.length ?? 0})</div>
+        <ul
+          className="overflow-hidden"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--line)",
+            borderRadius: "var(--radius)",
+          }}
+        >
+          {(members ?? []).map((m, i, arr) => (
+            <li
+              key={m.user_id}
+              className="flex items-center gap-3 p-3"
+              style={{
+                borderBottom: i < arr.length - 1 ? "1px solid var(--line)" : "none",
+              }}
+            >
+              <Avatar name={m.profiles?.display_name ?? "?"} size={34} />
+              <div className="flex-1 min-w-0">
+                <div style={{ fontWeight: 500, fontSize: 15 }}>
+                  {m.profiles?.display_name ?? "unknown"}
+                  {m.user_id === group.created_by && (
+                    <span
+                      className="ml-2"
+                      style={{
+                        fontFamily: "var(--font-stat-mono)",
+                        fontSize: 10,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      creator
+                    </span>
+                  )}
+                </div>
+                <div className="label mt-0.5">
+                  joined {new Date(m.joined_at).toLocaleDateString()}
+                </div>
+              </div>
             </li>
           ))}
         </ul>
       </section>
 
       {isCreator && (
-        <details className="group">
-          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 text-base font-medium [&::-webkit-details-marker]:hidden">
-            <span>Edit group</span>
-            <span className="text-zinc-400 transition-transform group-open:rotate-180">▾</span>
-          </summary>
-
-          <section className="mt-3 rounded-lg border border-zinc-200 bg-white p-4">
-            <form action={updateGroup} className="mb-6 space-y-3">
-              <input type="hidden" name="group_id" value={group.id} />
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-700">Group name</span>
-                <input
-                  name="name"
-                  type="text"
-                  required
-                  maxLength={80}
-                  defaultValue={group.name}
-                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-3 text-base"
-                />
-              </label>
-              <SubmitButton
-                pendingLabel="Saving…"
-                className="min-h-11 rounded-md bg-black px-4 py-3 text-base font-medium text-white"
+        <section className="px-5 pt-5">
+          <details className="group">
+            <summary
+              className="press inline-flex min-h-12 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "0 18px",
+                fontFamily: "var(--font-body)",
+                fontWeight: 500,
+                color: "var(--ink)",
+              }}
+            >
+              <span>edit group</span>
+              <span
+                aria-hidden
+                className="transition-transform group-open:rotate-180"
+                style={{ color: "var(--mute)" }}
               >
-                Save changes
-              </SubmitButton>
-            </form>
-
-            <div className="rounded-md border border-red-200 bg-red-50 p-3">
-              <p className="mb-3 text-xs text-red-800">
-                Deleting this group will permanently remove all of its challenges
-                and completions. This cannot be undone.
-              </p>
-              <ConfirmForm
-                action={deleteGroup}
-                message={`Delete "${group.name}"? All challenges and completions in this group will be permanently deleted. This cannot be undone.`}
-              >
+                ▾
+              </span>
+            </summary>
+            <div
+              className="mt-3 p-4"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+              }}
+            >
+              <form action={updateGroup} className="mb-5 flex flex-col gap-3">
                 <input type="hidden" name="group_id" value={group.id} />
+                <label className="block">
+                  <span className="label">Group name</span>
+                  <input
+                    name="name"
+                    type="text"
+                    required
+                    maxLength={80}
+                    defaultValue={group.name}
+                    className="mt-1.5 w-full outline-none"
+                    style={inputStyle}
+                  />
+                </label>
                 <SubmitButton
-                  pendingLabel="Deleting…"
-                  className="min-h-11 rounded-md border border-red-300 bg-white px-4 py-3 text-base font-medium text-red-700"
+                  pendingLabel="saving…"
+                  style={primaryStyle}
                 >
-                  Delete group
+                  save changes
                 </SubmitButton>
-              </ConfirmForm>
+              </form>
+
+              <div
+                className="p-3"
+                style={{
+                  borderRadius: "var(--radius)",
+                  border: "1px solid rgba(156, 31, 31, 0.25)",
+                  background: "rgba(216, 98, 58, 0.06)",
+                }}
+              >
+                <p
+                  className="mb-3 text-xs"
+                  style={{ color: "#7A1F1F", lineHeight: 1.4 }}
+                >
+                  deleting this group permanently removes all of its challenges
+                  and completions. this can&apos;t be undone.
+                </p>
+                <ConfirmForm
+                  action={deleteGroup}
+                  message={`Delete "${group.name}"? All challenges and completions in this group will be permanently deleted. This cannot be undone.`}
+                >
+                  <input type="hidden" name="group_id" value={group.id} />
+                  <SubmitButton
+                    pendingLabel="deleting…"
+                    style={dangerStyle}
+                  >
+                    delete group
+                  </SubmitButton>
+                </ConfirmForm>
+              </div>
             </div>
-          </section>
-        </details>
+          </details>
+        </section>
       )}
     </main>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  height: 52,
+  background: "var(--card-inset)",
+  border: "1.5px solid var(--line)",
+  borderRadius: "var(--radius)",
+  padding: "0 16px",
+  fontSize: 16,
+  color: "var(--ink)",
+  fontFamily: "var(--font-body)",
+};
+
+const primaryStyle: React.CSSProperties = {
+  minHeight: 52,
+  background: "var(--accent)",
+  color: "#fff",
+  borderRadius: "var(--radius)",
+  border: "none",
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
+  fontSize: 16,
+  padding: "0 22px",
+};
+
+const dangerStyle: React.CSSProperties = {
+  minHeight: 44,
+  background: "var(--card)",
+  color: "#9C1F1F",
+  borderRadius: "var(--radius)",
+  border: "1.5px solid rgba(156, 31, 31, 0.4)",
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
+  fontSize: 14,
+  padding: "0 18px",
+};
