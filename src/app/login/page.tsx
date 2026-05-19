@@ -1,5 +1,5 @@
-import Image from "next/image";
 import { SubmitButton } from "@/components/submit-button";
+import { Squiggle } from "@/components/ui/squiggle";
 import { login, signup } from "./actions";
 
 export default async function LoginPage({
@@ -18,17 +18,20 @@ export default async function LoginPage({
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col px-6 pb-8 pt-12">
       <div className="mt-8">
-        <h1 className="m-0" style={{ lineHeight: 0 }}>
-          <span className="sr-only">Accountably</span>
-          <Image
-            src="/wordmark.png"
-            alt=""
-            width={800}
-            height={228}
-            priority
-            style={{ width: "100%", height: "auto", maxWidth: 320 }}
-          />
+        <h1
+          className="m-0"
+          style={{
+            fontFamily: "var(--font-display)",
+            fontStyle: "italic",
+            fontSize: 56,
+            lineHeight: 0.95,
+            color: "var(--ink)",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          accountably<span style={{ color: "var(--accent)" }}>.</span>
         </h1>
+        <Squiggle width={90} />
       </div>
 
       <p
