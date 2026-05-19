@@ -45,7 +45,12 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
       <div className="label mb-2">today</div>
       <ul
         className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-1"
-        style={{ scrollPaddingLeft: 20 }}
+        style={{
+          scrollPaddingLeft: 20,
+          touchAction: "pan-x",
+          overscrollBehaviorX: "contain",
+          WebkitOverflowScrolling: "touch",
+        }}
       >
         {optimistic.map((p) => (
           <li key={p.id} className="snap-start" style={{ flex: "0 0 auto" }}>

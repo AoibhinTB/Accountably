@@ -48,6 +48,8 @@ export function IconPicker({
           WebkitOverflowScrolling: "touch",
           scrollPaddingLeft: 4,
           scrollPaddingRight: 4,
+          touchAction: "pan-x",
+          overscrollBehaviorX: "contain",
         }}
       >
         <label

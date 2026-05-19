@@ -187,15 +187,15 @@ export default async function FeedPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-5 pt-10 pb-28">
-      <header className="mb-5 flex items-end justify-between gap-3">
-        <div>
-          <div className="label mb-1">{todayLabel}</div>
+      <header className="mb-5">
+        <div className="label mb-1">{todayLabel}</div>
+        <div className="flex items-center justify-between gap-3">
           <h1 className="h-display m-0" style={{ fontSize: 40, lineHeight: 1 }}>
             <span style={{ fontStyle: "italic" }}>{greeting()}</span> {firstName}
           </h1>
-          <Squiggle width={84} />
+          <Avatar name={profile?.display_name ?? "?"} size={34} ring />
         </div>
-        <Avatar name={profile?.display_name ?? "?"} size={34} ring />
+        <Squiggle width={84} className="mt-1" />
       </header>
 
       <TodayBand pacts={todayPacts} />

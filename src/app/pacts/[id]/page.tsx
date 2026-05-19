@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ConfirmForm } from "@/components/confirm-form";
 import {
   CompletionFeed,
+  CompletionItem,
   type CompletionItemData,
 } from "@/components/completion-item";
 import {
@@ -60,6 +61,29 @@ const stickerForName = (name: string) =>
   name.trim()[0]?.toUpperCase() || "?";
 
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+const dayKeyUTC = (iso: string) => {
+  const d = new Date(iso);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+};
+
+const dayLabel = (key: string, now: Date = new Date()) => {
+  const today = new Date(now);
+  today.setUTCHours(0, 0, 0, 0);
+  const todayKey = today.toISOString().slice(0, 10);
+  const yesterday = new Date(today);
+  yesterday.setUTCDate(today.getUTCDate() - 1);
+  const yesterdayKey = yesterday.toISOString().slice(0, 10);
+
+  if (key === todayKey) return "today";
+  if (key === yesterdayKey) return "yesterday";
+  return new Date(key + "T00:00:00Z").toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+};
 
 const cadenceLabel = (
   frequency: "daily" | "weekly",
@@ -195,6 +219,19 @@ export default async function PactPage({
     }),
   );
 
+  // Group completions by UTC date for the day-by-day disclosure view.
+  const completionsByDay = new Map<string, CompletionItemData[]>();
+  for (const item of completionItems) {
+    const key = dayKeyUTC(item.completedAt);
+    const list = completionsByDay.get(key) ?? [];
+    list.push(item);
+    completionsByDay.set(key, list);
+  }
+  const todayKey = dayKeyUTC(new Date().toISOString());
+  const completionDays = [...completionsByDay.entries()]
+    .map(([key, items]) => ({ key, items }))
+    .sort((a, b) => b.key.localeCompare(a.key));
+
   const h = await headers();
   const host = h.get("host") ?? "localhost:3000";
   const proto =
@@ -306,150 +343,62 @@ export default async function PactPage({
         </div>
       )}
 
-      {challenge && (
+      {challenge && !myCurrentCompletion && (
         <section className="px-5 pt-6">
-          {myCurrentCompletion ? (
-            <details className="group" open={!myCurrentCompletion.note}>
-              <summary
-                className="press flex min-h-14 cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden"
-                style={{
-                  background: "var(--accent-soft)",
-                  color: "var(--accent)",
-                  borderRadius: "var(--radius)",
-                  padding: "0 18px",
-                  fontFamily: "var(--font-body)",
-                  fontWeight: 600,
-                  fontSize: 15,
-                }}
+          <form action={toggleQuickLogForm.bind(null, pact.id)}>
+            <SubmitButton
+              pendingLabel="marking…"
+              className="w-full"
+              style={{
+                minHeight: 64,
+                background: "var(--accent)",
+                color: "#fff",
+                borderRadius: "var(--radius-lg)",
+                border: "none",
+                fontFamily: "var(--font-display)",
+                fontSize: 22,
+                boxShadow: "0 8px 30px rgba(216, 98, 58, 0.35)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+              }}
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
               >
-                <span className="inline-flex items-center gap-2">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M5 12.5l4.5 4.5L19 7" />
-                  </svg>
-                  <span>
-                    {myCurrentCompletion.note
-                      ? `your note for ${periodLabel}`
-                      : `add a note for ${periodLabel}`}
-                  </span>
-                </span>
-                <span
-                  aria-hidden
-                  className="transition-transform group-open:rotate-180"
-                  style={{ color: "var(--accent)" }}
-                >
-                  ▾
-                </span>
-              </summary>
-              <form
-                action={saveCompletionNote}
-                className="mt-3 flex flex-col gap-3 p-4"
+                <path d="M5 12.5l4.5 4.5L19 7" />
+              </svg>
+              <span>mark {periodLabel} done</span>
+            </SubmitButton>
+            <p
+              className="mt-2 text-center text-xs"
+              style={{ color: "var(--mute)", lineHeight: 1.4 }}
+            >
+              or tap the circle for this pact on{" "}
+              <Link
+                href="/feed"
                 style={{
-                  background: "var(--card)",
-                  border: "1px solid var(--line)",
-                  borderRadius: "var(--radius)",
-                }}
-              >
-                <input type="hidden" name="pact_id" value={pact.id} />
-                <input
-                  type="hidden"
-                  name="completion_id"
-                  value={myCurrentCompletion.id}
-                />
-                <label className="block">
-                  <span className="label">Note</span>
-                  <textarea
-                    name="note"
-                    rows={3}
-                    maxLength={500}
-                    defaultValue={myCurrentCompletion.note ?? ""}
-                    placeholder="how did it go?"
-                    className="mt-1.5 w-full resize-none outline-none"
-                    style={{
-                      ...inputStyle,
-                      height: "auto",
-                      paddingTop: 12,
-                      paddingBottom: 12,
-                      fontFamily: "var(--font-display)",
-                      fontStyle: "italic",
-                      fontSize: 17,
-                    }}
-                  />
-                </label>
-                <SubmitButton
-                  pendingLabel="saving…"
-                  className="w-full"
-                  style={primaryStyle}
-                >
-                  {myCurrentCompletion.note ? "update note" : "save note"}
-                </SubmitButton>
-              </form>
-            </details>
-          ) : (
-            <form action={toggleQuickLogForm.bind(null, pact.id)}>
-              <SubmitButton
-                pendingLabel="marking…"
-                className="w-full"
-                style={{
-                  minHeight: 64,
-                  background: "var(--accent)",
-                  color: "#fff",
-                  borderRadius: "var(--radius-lg)",
-                  border: "none",
                   fontFamily: "var(--font-display)",
-                  fontSize: 22,
-                  boxShadow: "0 8px 30px rgba(216, 98, 58, 0.35)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
+                  fontStyle: "italic",
+                  color: "var(--ink-soft)",
+                  textDecoration: "underline",
+                  textDecorationColor: "var(--accent)",
+                  textUnderlineOffset: 3,
                 }}
               >
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M5 12.5l4.5 4.5L19 7" />
-                </svg>
-                <span>mark {periodLabel} done</span>
-              </SubmitButton>
-              <p
-                className="mt-2 text-center text-xs"
-                style={{ color: "var(--mute)", lineHeight: 1.4 }}
-              >
-                or tap the circle for this pact on{" "}
-                <Link
-                  href="/feed"
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    fontStyle: "italic",
-                    color: "var(--ink-soft)",
-                    textDecoration: "underline",
-                    textDecorationColor: "var(--accent)",
-                    textUnderlineOffset: 3,
-                  }}
-                >
-                  feed
-                </Link>
-              </p>
-            </form>
-          )}
+                feed
+              </Link>
+            </p>
+          </form>
         </section>
       )}
 
@@ -559,57 +508,140 @@ export default async function PactPage({
             {memberStatus.map(({ member: m, completion }, i, arr) => {
               const isYou = m.user_id === userData.user?.id;
               const name = m.profiles?.display_name ?? "unknown";
+              const showNoteAffordance = isYou && completion;
               return (
                 <li
                   key={m.user_id}
-                  className="flex items-center gap-3 p-3"
                   style={{
                     borderBottom:
                       i < arr.length - 1 ? "1px solid var(--line)" : "none",
                   }}
                 >
-                  <Avatar name={name} size={36} />
-                  <div className="min-w-0 flex-1">
-                    <div style={{ fontWeight: 500, fontSize: 15 }}>
-                      {name}
-                      {isYou && (
-                        <span style={{ color: "var(--mute)", fontWeight: 400 }}>
-                          {" · you"}
-                        </span>
-                      )}
+                  <div className="flex items-center gap-3 p-3">
+                    <Avatar name={name} size={36} />
+                    <div className="min-w-0 flex-1">
+                      <div style={{ fontWeight: 500, fontSize: 15 }}>
+                        {name}
+                        {isYou && (
+                          <span style={{ color: "var(--mute)", fontWeight: 400 }}>
+                            {" · you"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="label mt-0.5">
+                        {completion
+                          ? `checked in · ${timeAgo(completion.completed_at)}`
+                          : "still pending"}
+                      </div>
                     </div>
-                    <div className="label mt-0.5">
-                      {completion
-                        ? `checked in · ${timeAgo(completion.completed_at)}`
-                        : "still pending"}
-                    </div>
+                    {completion ? (
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                        style={{ color: "var(--accent)", flexShrink: 0 }}
+                      >
+                        <path d="M5 12.5l4.5 4.5L19 7" />
+                      </svg>
+                    ) : (
+                      <div
+                        aria-hidden
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          border: "1.5px dashed var(--line-strong)",
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
                   </div>
-                  {completion ? (
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden
-                      style={{ color: "var(--accent)", flexShrink: 0 }}
+
+                  {showNoteAffordance && (
+                    <details
+                      className="group px-3 pb-3"
+                      open={!completion.note}
                     >
-                      <path d="M5 12.5l4.5 4.5L19 7" />
-                    </svg>
-                  ) : (
-                    <div
-                      aria-hidden
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: "50%",
-                        border: "1.5px dashed var(--line-strong)",
-                        flexShrink: 0,
-                      }}
-                    />
+                      <summary
+                        className="press inline-flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden"
+                        style={{
+                          marginLeft: 48, // align under the text column, past the avatar
+                          padding: "6px 10px",
+                          borderRadius: 999,
+                          background: "var(--card-inset)",
+                          color: "var(--ink-soft)",
+                          fontFamily: "var(--font-stat-mono)",
+                          fontSize: 11,
+                          letterSpacing: "0.04em",
+                          textTransform: "uppercase",
+                          fontWeight: 500,
+                        }}
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        <span>
+                          {completion.note ? "edit note" : "add a note"}
+                        </span>
+                      </summary>
+                      <form
+                        action={saveCompletionNote}
+                        className="mt-2.5 flex flex-col gap-2.5"
+                        style={{ marginLeft: 48 }}
+                      >
+                        <input type="hidden" name="pact_id" value={pact.id} />
+                        <input
+                          type="hidden"
+                          name="completion_id"
+                          value={completion.id}
+                        />
+                        <textarea
+                          name="note"
+                          rows={2}
+                          maxLength={500}
+                          defaultValue={completion.note ?? ""}
+                          placeholder="how did it go?"
+                          className="w-full resize-none outline-none"
+                          style={{
+                            ...inputStyle,
+                            height: "auto",
+                            paddingTop: 10,
+                            paddingBottom: 10,
+                            fontFamily: "var(--font-display)",
+                            fontStyle: "italic",
+                            fontSize: 16,
+                          }}
+                        />
+                        <SubmitButton
+                          pendingLabel="saving…"
+                          style={{
+                            ...primaryStyle,
+                            minHeight: 40,
+                            fontSize: 14,
+                            alignSelf: "flex-start",
+                            padding: "0 16px",
+                          }}
+                        >
+                          {completion.note ? "update note" : "save note"}
+                        </SubmitButton>
+                      </form>
+                    </details>
                   )}
                 </li>
               );
@@ -619,15 +651,70 @@ export default async function PactPage({
       )}
 
       <section className="px-5 pt-6">
-        <div className="label mb-2">
-          completions
-          {completionItems.length ? ` (${completionItems.length})` : ""}
-        </div>
-        <CompletionFeed
-          items={completionItems}
-          revalidatePath={`/pacts/${id}`}
-          emptyMessage="no completions yet. be the first."
-        />
+        <div className="label mb-2">check-ins</div>
+        {completionDays.length === 0 ? (
+          <CompletionFeed
+            items={[]}
+            revalidatePath={`/pacts/${id}`}
+            emptyMessage="no check-ins yet. be the first."
+          />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {completionDays.map((day) => {
+              const noteCount = day.items.filter((c) => c.note).length;
+              return (
+                <li key={day.key}>
+                  <details className="group" open={day.key === todayKey}>
+                    <summary
+                      className="press flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden"
+                      style={{
+                        background: "var(--card)",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--radius)",
+                        padding: "0 16px",
+                        color: "var(--ink)",
+                      }}
+                    >
+                      <span className="inline-flex items-baseline gap-2">
+                        <span
+                          style={{
+                            fontFamily: "var(--font-display)",
+                            fontSize: 17,
+                            lineHeight: 1,
+                            color: "var(--ink)",
+                          }}
+                        >
+                          {dayLabel(day.key)}
+                        </span>
+                        <span className="label">
+                          {day.items.length} check-in
+                          {day.items.length === 1 ? "" : "s"}
+                          {noteCount > 0 ? ` · ${noteCount} note${noteCount === 1 ? "" : "s"}` : ""}
+                        </span>
+                      </span>
+                      <span
+                        aria-hidden
+                        className="transition-transform group-open:rotate-180"
+                        style={{ color: "var(--mute)" }}
+                      >
+                        ▾
+                      </span>
+                    </summary>
+                    <ul className="mt-2 flex flex-col gap-2">
+                      {day.items.map((item) => (
+                        <CompletionItem
+                          key={item.id}
+                          item={item}
+                          revalidatePath={`/pacts/${id}`}
+                        />
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       <section className="px-5 pt-8">
