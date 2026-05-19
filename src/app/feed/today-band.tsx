@@ -26,7 +26,7 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
         p.id === pactId ? { ...p, doneThisPeriod: !p.doneThisPeriod } : p,
       ),
   );
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   if (optimistic.length === 0) return null;
 
@@ -42,10 +42,7 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
 
   return (
     <section className="mb-7">
-      <div className="mb-2 flex items-baseline justify-between">
-        <div className="label">today</div>
-        <span className="label">tap to log</span>
-      </div>
+      <div className="label mb-2">today</div>
       <ul
         className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-1"
         style={{ scrollPaddingLeft: 20 }}
@@ -55,7 +52,6 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
             <button
               type="button"
               onClick={() => onTap(p)}
-              disabled={isPending}
               aria-pressed={p.doneThisPeriod}
               aria-label={
                 p.doneThisPeriod

@@ -195,7 +195,7 @@ export default async function FeedPage() {
           </h1>
           <Squiggle width={84} />
         </div>
-        <Avatar name={profile?.display_name ?? "?"} size={44} ring />
+        <Avatar name={profile?.display_name ?? "?"} size={34} ring />
       </header>
 
       <TodayBand pacts={todayPacts} />

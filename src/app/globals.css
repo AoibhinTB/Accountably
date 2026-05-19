@@ -100,9 +100,14 @@ body {
   border: 1px solid var(--line);
 }
 
-/* Press feedback for taps */
+/* Press feedback for taps. touch-action: manipulation removes the legacy
+   300ms tap delay on iOS Safari for elements that aren't double-tap zoom
+   targets. -webkit-tap-highlight-color suppresses the gray flash on tap
+   so our scale feedback isn't visually muddied. */
 .press {
-  transition: transform 120ms ease, filter 120ms ease;
+  transition: transform 90ms ease, filter 90ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .press:active {
   transform: scale(0.97);
@@ -127,6 +132,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Shimmer animation for loading skeletons */
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Avatar stack overlap */
