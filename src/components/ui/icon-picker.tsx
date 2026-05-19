@@ -51,12 +51,14 @@ export function IconPicker({
   const [selected, setSelected] = useState<string>(defaultValue ?? "");
 
   return (
-    <fieldset>
+    <fieldset style={{ minWidth: 0 }}>
       <legend className="label">{legend}</legend>
       <input type="hidden" name={name} value={selected} />
       <div
         className="mt-2 flex gap-2 overflow-x-auto px-1 py-2 no-scrollbar"
         style={{
+          minWidth: 0,
+          maxWidth: "100%",
           scrollPaddingLeft: 4,
           scrollPaddingRight: 4,
           touchAction: "pan-x",

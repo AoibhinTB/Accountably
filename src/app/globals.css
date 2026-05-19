@@ -140,6 +140,19 @@ body {
   100% { background-position: -200% 0; }
 }
 
+/* Hide scrollbars on horizontal-scroll bars (icon picker, today band).
+   !important guards against Tailwind utilities or browser defaults
+   re-introducing the bar. */
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* Avatar stack overlap */
 .avastack {
   display: inline-flex;
