@@ -30,6 +30,7 @@ type PactRow = {
   groups: {
     id: string;
     name: string;
+    icon: string | null;
     challenges: {
       id: string;
       frequency: "daily" | "weekly";
@@ -84,7 +85,7 @@ export default async function FeedPage() {
   // doubly-nested filter syntax.
   const { data: pactRows, error: pactRowsError } = await supabase
     .from("group_members")
-    .select("groups(id, name, challenges(id, frequency, archived))")
+    .select("groups(id, name, icon, challenges(id, frequency, archived))")
     .eq("user_id", user.id)
     .returns<PactRow[]>();
 
@@ -97,7 +98,9 @@ export default async function FeedPage() {
     .filter((g): g is NonNullable<PactRow["groups"]> => !!g)
     .map((g) => {
       const ch = g.challenges?.find((c) => !c.archived);
-      return ch ? { groupId: g.id, name: g.name, challenge: ch } : null;
+      return ch
+        ? { groupId: g.id, name: g.name, icon: g.icon, challenge: ch }
+        : null;
     })
     .filter((p): p is NonNullable<typeof p> => !!p);
 
@@ -130,6 +133,7 @@ export default async function FeedPage() {
     return {
       id: p.groupId,
       name: p.name,
+      icon: p.icon,
       frequency: p.challenge.frequency,
       doneThisPeriod: done,
     };

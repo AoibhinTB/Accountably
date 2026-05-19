@@ -95,12 +95,18 @@ export function CompletionItem({
         </div>
 
         {item.note && (
-          <div
-            className="note mt-3"
-            style={{ paddingLeft: 12, borderLeft: "2px solid var(--accent)" }}
+          <p
+            className="mt-3 whitespace-pre-wrap"
+            style={{
+              paddingLeft: 12,
+              borderLeft: "2px solid var(--accent)",
+              fontSize: 15,
+              color: "var(--ink)",
+              lineHeight: 1.4,
+            }}
           >
-            &ldquo;{item.note}&rdquo;
-          </div>
+            {item.note}
+          </p>
         )}
 
         <ReactionBar

@@ -13,8 +13,10 @@ import {
 } from "@/components/reactions/constants";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
+import { IconPicker } from "@/components/ui/icon-picker";
 import { Squiggle } from "@/components/ui/squiggle";
-import { startOfPeriodUTC } from "@/lib/period";
+import { buildWeekDots, startOfPeriodUTC, timeAgo } from "@/lib/period";
+import { IconEditTrigger } from "./icon-edit-trigger";
 import {
   deletePact,
   saveCompletionNote,
@@ -69,7 +71,7 @@ export default async function PactPage({
   const { data: pact } = await supabase
     .from("groups")
     .select(
-      "id, name, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at)",
+      "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -101,22 +103,64 @@ export default async function PactPage({
         .returns<CompletionRow[]>()
     : { data: [] as CompletionRow[] };
 
-  // Find the user's most recent completion in the current period, if any.
-  // That's the row a "today's note" / "this week's note" gets attached to.
+  const periodStart = challenge ? startOfPeriodUTC(challenge.frequency) : null;
+  const periodLabel = challenge?.frequency === "weekly" ? "this week" : "today";
+
+  // Dedicated narrow queries for the per-member status and week-dots so they
+  // aren't capped by the 30-row limit on the completions feed query above.
+  const { data: periodCompletions } =
+    challenge && periodStart
+      ? await supabase
+          .from("completions")
+          .select("user_id, completed_at, note, id")
+          .eq("challenge_id", challenge.id)
+          .gte("completed_at", periodStart.toISOString())
+          .order("completed_at", { ascending: false })
+      : { data: [] as { user_id: string; completed_at: string; note: string | null; id: string }[] };
+
+  const weekStart =
+    challenge?.frequency === "daily" ? startOfPeriodUTC("weekly") : null;
+  const { data: weekCompletions } =
+    challenge && weekStart
+      ? await supabase
+          .from("completions")
+          .select("completed_at, user_id")
+          .eq("challenge_id", challenge.id)
+          .gte("completed_at", weekStart.toISOString())
+      : { data: [] as { completed_at: string; user_id: string }[] };
+
+  // My current-period completion is the most recent one I've logged within
+  // the period. The "add a note" disclosure binds to its id.
   const myCurrentCompletion =
     challenge && userData.user
-      ? (() => {
-          const periodStart = startOfPeriodUTC(challenge.frequency);
-          return (
-            (completions ?? []).find(
-              (c) =>
-                c.user_id === userData.user!.id &&
-                new Date(c.completed_at) >= periodStart,
-            ) ?? null
-          );
-        })()
+      ? (periodCompletions ?? []).find(
+          (c) => c.user_id === userData.user!.id,
+        ) ?? null
       : null;
-  const periodLabel = challenge?.frequency === "weekly" ? "this week" : "today";
+
+  const memberStatus = (members ?? []).map((m) => {
+    const completion =
+      (periodCompletions ?? []).find((c) => c.user_id === m.user_id) ?? null;
+    return { member: m, completion };
+  });
+  const periodDoneCount = memberStatus.filter((s) => s.completion).length;
+
+  // Streak dots — only meaningful for daily challenges. Mon-Sun, one dot per
+  // day of the current week. A dot fills when *every member who was in the
+  // pact by the end of that day* completed that day — new joiners are exempt
+  // for days before their join.
+  const weekDots =
+    challenge?.frequency === "daily"
+      ? buildWeekDots(
+          weekCompletions ?? [],
+          (members ?? []).map((m) => ({
+            user_id: m.user_id,
+            joined_at: m.joined_at,
+          })),
+        )
+      : null;
+  const weekDoneDays = weekDots ? weekDots.filter(Boolean).length : 0;
+  const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"] as const;
 
   const completionItems: CompletionItemData[] = (completions ?? []).map(
     (row) => ({
@@ -154,21 +198,28 @@ export default async function PactPage({
           position: "relative",
         }}
       >
-        <div
-          className="-rotate-2 mx-auto mb-3 flex items-center justify-center"
-          style={{
-            width: 78,
-            height: 78,
-            borderRadius: 22,
-            background: "var(--card)",
-            color: "var(--accent)",
-            fontFamily: "var(--font-display)",
-            fontSize: 42,
-            boxShadow: "0 4px 0 rgba(42,31,24,0.08)",
-          }}
-          aria-hidden
-        >
-          {stickerForName(pact.name)}
+        <div className="mb-3 flex justify-center">
+          <IconEditTrigger targetId="edit-pact" ariaLabel="Change pact icon">
+            <div
+              className="-rotate-2"
+              style={{
+                width: 78,
+                height: 78,
+                borderRadius: 22,
+                background: "var(--card)",
+                color: "var(--accent)",
+                fontFamily: pact.icon ? "inherit" : "var(--font-display)",
+                fontSize: pact.icon ? 44 : 42,
+                boxShadow: "0 4px 0 rgba(42,31,24,0.08)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              aria-hidden
+            >
+              {pact.icon ?? stickerForName(pact.name)}
+            </div>
+          </IconEditTrigger>
         </div>
         <h1 className="h-display m-0" style={{ fontSize: 32 }}>
           {pact.name}
@@ -377,6 +428,158 @@ export default async function PactPage({
         </section>
       )}
 
+      {weekDots && (
+        <section className="px-5 pt-6">
+          <div
+            className="p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            <div className="mb-3 flex items-baseline justify-between">
+              <span className="label">this week · group</span>
+              <span
+                style={{
+                  fontFamily: "var(--font-stat-mono)",
+                  fontSize: 12,
+                  color: "var(--accent)",
+                  fontWeight: 600,
+                }}
+              >
+                {weekDoneDays}/{weekDots.length}
+              </span>
+            </div>
+            <div className="flex justify-between gap-1">
+              {weekDots.map((done, i) => (
+                <div key={i} className="flex flex-col items-center gap-1.5">
+                  <span
+                    className="label"
+                    style={{ fontSize: 9, letterSpacing: "0.08em" }}
+                  >
+                    {DAY_LABELS[i]}
+                  </span>
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      background: done ? "var(--accent)" : "transparent",
+                      border: done ? "none" : "1.5px dashed var(--line-strong)",
+                      color: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    aria-hidden
+                  >
+                    {done && (
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12.5l4.5 4.5L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {challenge && memberStatus.length > 0 && (
+        <section className="px-5 pt-6">
+          <div className="mb-2 flex items-baseline justify-between">
+            <span className="label">{periodLabel}</span>
+            <span
+              style={{
+                fontFamily: "var(--font-stat-mono)",
+                fontSize: 12,
+                color: "var(--mute)",
+              }}
+            >
+              {periodDoneCount}/{memberStatus.length} checked in
+            </span>
+          </div>
+          <ul
+            className="overflow-hidden"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            {memberStatus.map(({ member: m, completion }, i, arr) => {
+              const isYou = m.user_id === userData.user?.id;
+              const name = m.profiles?.display_name ?? "unknown";
+              return (
+                <li
+                  key={m.user_id}
+                  className="flex items-center gap-3 p-3"
+                  style={{
+                    borderBottom:
+                      i < arr.length - 1 ? "1px solid var(--line)" : "none",
+                  }}
+                >
+                  <Avatar name={name} size={36} />
+                  <div className="min-w-0 flex-1">
+                    <div style={{ fontWeight: 500, fontSize: 15 }}>
+                      {name}
+                      {isYou && (
+                        <span style={{ color: "var(--mute)", fontWeight: 400 }}>
+                          {" · you"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="label mt-0.5">
+                      {completion
+                        ? `checked in · ${timeAgo(completion.completed_at)}`
+                        : "still pending"}
+                    </div>
+                  </div>
+                  {completion ? (
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                      style={{ color: "var(--accent)", flexShrink: 0 }}
+                    >
+                      <path d="M5 12.5l4.5 4.5L19 7" />
+                    </svg>
+                  ) : (
+                    <div
+                      aria-hidden
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        border: "1.5px dashed var(--line-strong)",
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <section className="px-5 pt-6">
         <div className="label mb-2">
           completions
@@ -493,9 +696,9 @@ export default async function PactPage({
         </details>
       </section>
 
-      {isCreator && challenge && (
+      {challenge && (
         <section className="px-5 pt-5">
-          <details className="group">
+          <details className="group" id="edit-pact">
             <summary
               className="press inline-flex min-h-12 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
               style={{
@@ -539,6 +742,7 @@ export default async function PactPage({
                     style={inputStyle}
                   />
                 </label>
+                <IconPicker defaultValue={pact.icon} />
                 <label className="block">
                   <span className="label">Description (optional)</span>
                   <textarea
@@ -616,31 +820,34 @@ export default async function PactPage({
                 </SubmitButton>
               </form>
 
-              <div
-                className="p-3"
-                style={{
-                  borderRadius: "var(--radius)",
-                  border: "1px solid rgba(156, 31, 31, 0.25)",
-                  background: "rgba(216, 98, 58, 0.06)",
-                }}
-              >
-                <p
-                  className="mb-3 text-xs"
-                  style={{ color: "#7A1F1F", lineHeight: 1.4 }}
+              {isCreator && (
+                <div
+                  className="p-3"
+                  style={{
+                    borderRadius: "var(--radius)",
+                    border: "1px solid rgba(156, 31, 31, 0.25)",
+                    background: "rgba(216, 98, 58, 0.06)",
+                  }}
                 >
-                  deleting this pact permanently removes all completions and
-                  reactions. this can&apos;t be undone.
-                </p>
-                <ConfirmForm
-                  action={deletePact}
-                  message={`Delete "${pact.name}"? All completions and reactions in this pact will be permanently deleted. This cannot be undone.`}
-                >
-                  <input type="hidden" name="pact_id" value={pact.id} />
-                  <SubmitButton pendingLabel="deleting…" style={dangerStyle}>
-                    delete pact
-                  </SubmitButton>
-                </ConfirmForm>
-              </div>
+                  <p
+                    className="mb-3 text-xs"
+                    style={{ color: "#7A1F1F", lineHeight: 1.4 }}
+                  >
+                    deleting this pact permanently removes all completions and
+                    reactions. this can&apos;t be undone. only the creator can
+                    delete.
+                  </p>
+                  <ConfirmForm
+                    action={deletePact}
+                    message={`Delete "${pact.name}"? All completions and reactions in this pact will be permanently deleted. This cannot be undone.`}
+                  >
+                    <input type="hidden" name="pact_id" value={pact.id} />
+                    <SubmitButton pendingLabel="deleting…" style={dangerStyle}>
+                      delete pact
+                    </SubmitButton>
+                  </ConfirmForm>
+                </div>
+              )}
             </div>
           </details>
         </section>

@@ -1,8 +1,26 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
-import { Squiggle } from "@/components/ui/squiggle";
 import { Avatar } from "@/components/ui/avatar";
+import { Squiggle } from "@/components/ui/squiggle";
+import { currentStreak, type Frequency } from "@/lib/period";
+
+type PactRow = {
+  groups: {
+    id: string;
+    name: string;
+    icon: string | null;
+    challenges: {
+      id: string;
+      frequency: Frequency;
+      archived: boolean;
+    }[];
+  } | null;
+};
+
+const stickerForName = (name: string) =>
+  name.trim()[0]?.toUpperCase() || "?";
 
 export default async function YouPage() {
   const supabase = await createClient();
@@ -24,6 +42,80 @@ export default async function YouPage() {
       })
     : null;
 
+  // Pacts I'm a member of, with their active challenge.
+  const { data: pactRows } = await supabase
+    .from("group_members")
+    .select("groups(id, name, icon, challenges(id, frequency, archived))")
+    .eq("user_id", user.id)
+    .returns<PactRow[]>();
+
+  const pacts = (pactRows ?? [])
+    .flatMap((r) => (r.groups ? [r.groups] : []))
+    .map((g) => {
+      const active = g.challenges?.find((c) => !c.archived);
+      return active
+        ? { id: g.id, name: g.name, icon: g.icon, challenge: active }
+        : null;
+    })
+    .filter((p): p is NonNullable<typeof p> => !!p);
+
+  const activeChallengeIds = pacts.map((p) => p.challenge.id);
+
+  // My completions across all my active pacts. Used for per-pact streaks and
+  // the top "streak" stat (max of all current streaks). 400-day lookback caps
+  // the query size while comfortably covering any plausible daily streak.
+  const lookback = new Date();
+  lookback.setUTCDate(lookback.getUTCDate() - 400);
+
+  const { data: myCompletions } = activeChallengeIds.length
+    ? await supabase
+        .from("completions")
+        .select("challenge_id, completed_at")
+        .eq("user_id", user.id)
+        .in("challenge_id", activeChallengeIds)
+        .gte("completed_at", lookback.toISOString())
+    : { data: [] as { challenge_id: string; completed_at: string }[] };
+
+  const completionsByChallenge = new Map<string, string[]>();
+  for (const c of myCompletions ?? []) {
+    const list = completionsByChallenge.get(c.challenge_id) ?? [];
+    list.push(c.completed_at);
+    completionsByChallenge.set(c.challenge_id, list);
+  }
+
+  const pactsWithStreak = pacts.map((p) => {
+    const ts = completionsByChallenge.get(p.challenge.id) ?? [];
+    return { ...p, streak: currentStreak(ts, p.challenge.frequency) };
+  });
+
+  const topStreak = pactsWithStreak.reduce(
+    (max, p) => Math.max(max, p.streak),
+    0,
+  );
+  const topStreakFreq =
+    pactsWithStreak.find((p) => p.streak === topStreak)?.challenge.frequency ??
+    "daily";
+
+  // This-month completion count for the current user.
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const { count: monthCount } = await supabase
+    .from("completions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("completed_at", monthStart.toISOString());
+
+  const stats = [
+    { label: "pacts", value: pactsWithStreak.length },
+    {
+      label: topStreakFreq === "weekly" ? "streak (wks)" : "streak (days)",
+      value: topStreak,
+    },
+    { label: "this month", value: monthCount ?? 0 },
+  ];
+
   return (
     <main className="mx-auto w-full max-w-2xl px-5 pt-10 pb-28">
       <header className="flex flex-col items-center pt-2 text-center">
@@ -35,16 +127,167 @@ export default async function YouPage() {
           {profile?.display_name ?? "you"}
         </h1>
         <Squiggle width={70} />
-        <div
-          className="mt-2"
-          style={{ color: "var(--mute)", fontSize: 14 }}
-        >
+        <div className="mt-2" style={{ color: "var(--mute)", fontSize: 14 }}>
           {user.email}
           {joined && <> · joined {joined}</>}
         </div>
       </header>
 
-      <form action="/auth/signout" method="post" className="mt-10">
+      <section className="mt-6 grid grid-cols-3 gap-2.5">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="p-3 text-center"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 30,
+                lineHeight: 1,
+                color: "var(--ink)",
+              }}
+            >
+              {s.value}
+            </div>
+            <div className="label mt-1.5">{s.label}</div>
+          </div>
+        ))}
+      </section>
+
+      <section className="mt-7">
+        <div className="label mb-2">your pacts</div>
+        {pactsWithStreak.length === 0 ? (
+          <div
+            className="px-5 py-5 text-center"
+            style={{
+              borderRadius: "var(--radius)",
+              border: "1.5px dashed var(--line-strong)",
+              color: "var(--ink-soft)",
+              fontSize: 14,
+            }}
+          >
+            you&apos;re not in any pacts yet.{" "}
+            <Link
+              href="/pacts"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontStyle: "italic",
+                color: "var(--ink)",
+                textDecoration: "underline",
+                textDecorationColor: "var(--accent)",
+                textUnderlineOffset: 3,
+              }}
+            >
+              start one
+            </Link>
+            .
+          </div>
+        ) : (
+          <ul
+            className="overflow-hidden"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            {pactsWithStreak.map((p, i, arr) => (
+              <li
+                key={p.id}
+                style={{
+                  borderBottom:
+                    i < arr.length - 1 ? "1px solid var(--line)" : "none",
+                }}
+              >
+                <Link
+                  href={`/pacts/${p.id}`}
+                  className="press flex items-center gap-3 p-3 active:bg-[color:var(--card-inset)]"
+                >
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      background: "var(--accent-soft)",
+                      color: "var(--accent)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontFamily: p.icon ? "inherit" : "var(--font-display)",
+                      fontSize: p.icon ? 24 : 22,
+                      flexShrink: 0,
+                    }}
+                    aria-hidden
+                  >
+                    {p.icon ?? stickerForName(p.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div style={{ fontWeight: 500, fontSize: 15 }}>{p.name}</div>
+                    <div className="label mt-0.5">{p.challenge.frequency}</div>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-stat-mono)",
+                      fontSize: 13,
+                      color: "var(--accent)",
+                      fontWeight: 600,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {p.streak}{" "}
+                    <span style={{ color: "var(--mute)", fontWeight: 400 }}>
+                      {p.challenge.frequency === "weekly" ? "wks" : "days"}
+                    </span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="mt-7">
+        <div className="label mb-2">settings</div>
+        <ul
+          className="overflow-hidden"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--line)",
+            borderRadius: "var(--radius)",
+          }}
+        >
+          {["notifications", "privacy", "about accountably"].map((s, i, arr) => (
+            <li
+              key={s}
+              className="flex items-center justify-between p-4"
+              style={{
+                borderBottom:
+                  i < arr.length - 1 ? "1px solid var(--line)" : "none",
+                color: "var(--ink-soft)",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>{s}</span>
+              <span
+                className="label"
+                style={{
+                  fontSize: 9,
+                  color: "var(--mute)",
+                }}
+                aria-label="coming soon"
+              >
+                soon
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <form action="/auth/signout" method="post" className="mt-7">
         <SubmitButton
           pendingLabel="signing out…"
           className="w-full"

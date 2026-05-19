@@ -7,6 +7,7 @@ import { toggleQuickLog } from "@/app/pacts/actions";
 export type TodayPact = {
   id: string;
   name: string;
+  icon: string | null;
   frequency: "daily" | "weekly";
   doneThisPeriod: boolean;
 };
@@ -64,7 +65,7 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
               className="press flex flex-col items-center gap-1.5"
               style={{ width: 96 }}
             >
-              <CompletionDisk done={p.doneThisPeriod} />
+              <CompletionDisk done={p.doneThisPeriod} icon={p.icon} />
               <div
                 className="w-full truncate text-center"
                 style={{
@@ -126,7 +127,13 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
   );
 }
 
-function CompletionDisk({ done }: { done: boolean }) {
+function CompletionDisk({
+  done,
+  icon,
+}: {
+  done: boolean;
+  icon: string | null;
+}) {
   return (
     <div
       style={{
@@ -142,6 +149,7 @@ function CompletionDisk({ done }: { done: boolean }) {
         alignItems: "center",
         justifyContent: "center",
         color: done ? "#fff" : "var(--mute)",
+        position: "relative",
       }}
       aria-hidden
     >
@@ -158,6 +166,8 @@ function CompletionDisk({ done }: { done: boolean }) {
         >
           <path d="M5 12.5l4.5 4.5L19 7" />
         </svg>
+      ) : icon ? (
+        <span style={{ fontSize: 32, lineHeight: 1 }}>{icon}</span>
       ) : (
         <svg
           width="34"

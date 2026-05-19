@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
+import { Avatar } from "@/components/ui/avatar";
+import { IconPicker } from "@/components/ui/icon-picker";
 import { Squiggle } from "@/components/ui/squiggle";
 import { createPact, joinPactByCode } from "./actions";
 
@@ -9,6 +11,7 @@ type Membership = {
   groups: {
     id: string;
     name: string;
+    icon: string | null;
     created_at: string;
     challenges: {
       id: string;
@@ -18,6 +21,12 @@ type Membership = {
       archived: boolean;
     }[];
   } | null;
+};
+
+type MemberRow = {
+  group_id: string;
+  user_id: string;
+  profiles: { display_name: string } | null;
 };
 
 const stickerForName = (name: string) =>
@@ -45,19 +54,39 @@ export default async function PactsPage({
   const { data: memberships } = await supabase
     .from("group_members")
     .select(
-      "joined_at, groups(id, name, created_at, challenges(id, frequency, start_date, end_date, archived))",
+      "joined_at, groups(id, name, icon, created_at, challenges(id, frequency, start_date, end_date, archived))",
     )
     .eq("user_id", user?.id ?? "")
     .order("joined_at", { ascending: false })
     .returns<Membership[]>();
+
+  const myPactIds = (memberships ?? [])
+    .flatMap((m) => (m.groups ? [m.groups.id] : []));
+
+  const { data: allMembers } = myPactIds.length
+    ? await supabase
+        .from("group_members")
+        .select("group_id, user_id, profiles(display_name)")
+        .in("group_id", myPactIds)
+        .returns<MemberRow[]>()
+    : { data: [] as MemberRow[] };
+
+  const membersByGroup = new Map<string, MemberRow[]>();
+  for (const m of allMembers ?? []) {
+    const list = membersByGroup.get(m.group_id) ?? [];
+    list.push(m);
+    membersByGroup.set(m.group_id, list);
+  }
 
   const pacts = (memberships ?? [])
     .flatMap((m) => (m.groups ? [m.groups] : []))
     .map((g) => ({
       id: g.id,
       name: g.name,
+      icon: g.icon,
       created_at: g.created_at,
       active: g.challenges?.find((c) => !c.archived) ?? null,
+      members: membersByGroup.get(g.id) ?? [],
     }));
 
   const isEmpty = pacts.length === 0;
@@ -111,15 +140,15 @@ export default async function PactsPage({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontFamily: "var(--font-display)",
-                  fontSize: 28,
+                  fontFamily: p.icon ? "inherit" : "var(--font-display)",
+                  fontSize: p.icon ? 32 : 28,
                   color: "var(--accent)",
                   boxShadow: "0 2px 0 var(--line)",
                   flexShrink: 0,
                 }}
                 aria-hidden
               >
-                {stickerForName(p.name)}
+                {p.icon ?? stickerForName(p.name)}
               </div>
               <div className="min-w-0 flex-1">
                 <div
@@ -136,6 +165,22 @@ export default async function PactsPage({
                   {p.active ? p.active.frequency : "no active challenge"}
                   {p.active && ` · since ${new Date(p.active.start_date).toLocaleDateString()}`}
                 </div>
+                {p.members.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="avastack">
+                      {p.members.slice(0, 4).map((m) => (
+                        <Avatar
+                          key={m.user_id}
+                          name={m.profiles?.display_name ?? "?"}
+                          size={22}
+                        />
+                      ))}
+                    </div>
+                    <span className="label">
+                      {p.members.length} friend{p.members.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                )}
               </div>
               <span style={{ color: "var(--mute)" }} aria-hidden>→</span>
             </Link>
@@ -204,6 +249,7 @@ export default async function PactsPage({
                 style={inputStyle}
               />
             </label>
+            <IconPicker />
             <label className="block">
               <span className="label">Description (optional)</span>
               <textarea

@@ -29,12 +29,16 @@ export async function createPact(formData: FormData) {
   const descriptionRaw = String(formData.get("description") ?? "").trim();
   const description = descriptionRaw ? descriptionRaw : null;
 
+  const iconRaw = String(formData.get("icon") ?? "").trim();
+  const icon = iconRaw && iconRaw.length <= 16 ? iconRaw : null;
+
   const { data, error } = await supabase.rpc("create_pact", {
     p_name: name,
     p_frequency: frequency,
     p_start_date: startDate,
     p_end_date: endDate,
     p_description: description,
+    p_icon: icon,
   });
 
   if (error || !data) {
@@ -79,9 +83,12 @@ export async function updatePact(formData: FormData) {
   const descriptionRaw = String(formData.get("description") ?? "").trim();
   const description = descriptionRaw ? descriptionRaw : null;
 
+  const iconRaw = String(formData.get("icon") ?? "").trim();
+  const icon = iconRaw && iconRaw.length <= 16 ? iconRaw : null;
+
   const { data: groupUpdate, error: groupErr } = await supabase
     .from("groups")
-    .update({ name })
+    .update({ name, icon })
     .eq("id", pactId)
     .select("id")
     .maybeSingle();
@@ -90,7 +97,7 @@ export async function updatePact(formData: FormData) {
     redirect(`${detailUrl}?error=${encodeURIComponent(groupErr.message)}`);
   }
   if (!groupUpdate) {
-    redirect(`${detailUrl}?error=Only+the+creator+can+edit+this+pact`);
+    redirect(`${detailUrl}?error=Only+members+can+edit+this+pact`);
   }
 
   const { error: challengeErr } = await supabase
