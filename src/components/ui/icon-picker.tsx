@@ -42,7 +42,14 @@ export function IconPicker({
   return (
     <fieldset>
       <legend className="label">{legend}</legend>
-      <div className="-mx-5 mt-2 flex gap-2 overflow-x-auto px-5 pb-1 no-scrollbar">
+      <div
+        className="mt-2 flex gap-2 overflow-x-auto px-1 py-2 no-scrollbar"
+        style={{
+          WebkitOverflowScrolling: "touch",
+          scrollPaddingLeft: 4,
+          scrollPaddingRight: 4,
+        }}
+      >
         <label
           className="press has-[input:checked]:ring-2 has-[input:checked]:ring-[color:var(--accent)] has-[input:checked]:bg-[color:var(--accent-soft)]"
           style={TILE_STYLE}

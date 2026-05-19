@@ -15,6 +15,7 @@ type PactRow = {
       id: string;
       frequency: Frequency;
       archived: boolean;
+      days_of_week: number[] | null;
     }[];
   } | null;
 };
@@ -45,7 +46,7 @@ export default async function YouPage() {
   // Pacts I'm a member of, with their active challenge.
   const { data: pactRows } = await supabase
     .from("group_members")
-    .select("groups(id, name, icon, challenges(id, frequency, archived))")
+    .select("groups(id, name, icon, challenges(id, frequency, archived, days_of_week))")
     .eq("user_id", user.id)
     .returns<PactRow[]>();
 
@@ -85,7 +86,14 @@ export default async function YouPage() {
 
   const pactsWithStreak = pacts.map((p) => {
     const ts = completionsByChallenge.get(p.challenge.id) ?? [];
-    return { ...p, streak: currentStreak(ts, p.challenge.frequency) };
+    return {
+      ...p,
+      streak: currentStreak(
+        ts,
+        p.challenge.frequency,
+        p.challenge.days_of_week,
+      ),
+    };
   });
 
   const topStreak = pactsWithStreak.reduce(

@@ -13,9 +13,10 @@ import {
 } from "@/components/reactions/constants";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
+import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { Squiggle } from "@/components/ui/squiggle";
-import { buildWeekDots, startOfPeriodUTC, timeAgo } from "@/lib/period";
+import { buildWeekDots, startOfPeriodUTC, timeAgo, type WeekDay } from "@/lib/period";
 import { IconEditTrigger } from "./icon-edit-trigger";
 import {
   deletePact,
@@ -43,6 +44,7 @@ type Challenge = {
   end_date: string | null;
   archived: boolean;
   created_at: string;
+  days_of_week: number[] | null;
 };
 
 type CompletionRow = {
@@ -56,6 +58,22 @@ type CompletionRow = {
 
 const stickerForName = (name: string) =>
   name.trim()[0]?.toUpperCase() || "?";
+
+const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+const cadenceLabel = (
+  frequency: "daily" | "weekly",
+  daysOfWeek: number[] | null,
+): string => {
+  if (!daysOfWeek || daysOfWeek.length === 0) return frequency;
+  const sorted = [...daysOfWeek].sort((a, b) => a - b);
+  if (sorted.length === 7) return "every day";
+  if (sorted.length === 5 && sorted.every((d, i) => d === i)) return "weekdays";
+  if (sorted.length === 2 && sorted[0] === 5 && sorted[1] === 6)
+    return "weekends";
+  if (sorted.length === 1) return DAY_SHORT[sorted[0]];
+  return sorted.map((d) => DAY_SHORT[d]).join(", ");
+};
 
 export default async function PactPage({
   params,
@@ -71,7 +89,7 @@ export default async function PactPage({
   const { data: pact } = await supabase
     .from("groups")
     .select(
-      "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at)",
+      "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -145,11 +163,10 @@ export default async function PactPage({
   });
   const periodDoneCount = memberStatus.filter((s) => s.completion).length;
 
-  // Streak dots — only meaningful for daily challenges. Mon-Sun, one dot per
-  // day of the current week. A dot fills when *every member who was in the
-  // pact by the end of that day* completed that day — new joiners are exempt
-  // for days before their join.
-  const weekDots =
+  // Streak dots — only meaningful for daily pacts. One state per day of the
+  // current week: "done" (all required members hit it), "pending" (required
+  // day not yet fully done), or "rest" (pact doesn't require this day).
+  const weekDots: WeekDay[] | null =
     challenge?.frequency === "daily"
       ? buildWeekDots(
           weekCompletions ?? [],
@@ -157,9 +174,15 @@ export default async function PactPage({
             user_id: m.user_id,
             joined_at: m.joined_at,
           })),
+          challenge.days_of_week,
         )
       : null;
-  const weekDoneDays = weekDots ? weekDots.filter(Boolean).length : 0;
+  const weekRequiredCount = weekDots
+    ? weekDots.filter((s) => s !== "rest").length
+    : 0;
+  const weekDoneCount = weekDots
+    ? weekDots.filter((s) => s === "done").length
+    : 0;
   const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"] as const;
 
   const completionItems: CompletionItemData[] = (completions ?? []).map(
@@ -227,7 +250,9 @@ export default async function PactPage({
         <Squiggle width={84} className="mx-auto" />
         {challenge && (
           <div className="mt-3 flex items-center justify-center gap-2">
-            <span className="pill">{challenge.frequency}</span>
+            <span className="pill">
+              {cadenceLabel(challenge.frequency, challenge.days_of_week)}
+            </span>
             <span className="label">
               since {new Date(challenge.start_date).toLocaleDateString()}
               {challenge.end_date &&
@@ -448,49 +473,62 @@ export default async function PactPage({
                   fontWeight: 600,
                 }}
               >
-                {weekDoneDays}/{weekDots.length}
+                {weekDoneCount}/{weekRequiredCount}
               </span>
             </div>
             <div className="flex justify-between gap-1">
-              {weekDots.map((done, i) => (
-                <div key={i} className="flex flex-col items-center gap-1.5">
-                  <span
-                    className="label"
-                    style={{ fontSize: 9, letterSpacing: "0.08em" }}
-                  >
-                    {DAY_LABELS[i]}
-                  </span>
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      background: done ? "var(--accent)" : "transparent",
-                      border: done ? "none" : "1.5px dashed var(--line-strong)",
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    aria-hidden
-                  >
-                    {done && (
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M5 12.5l4.5 4.5L19 7" />
-                      </svg>
-                    )}
+              {weekDots.map((state, i) => {
+                const isRest = state === "rest";
+                const isDone = state === "done";
+                return (
+                  <div key={i} className="flex flex-col items-center gap-1.5">
+                    <span
+                      className="label"
+                      style={{
+                        fontSize: 9,
+                        letterSpacing: "0.08em",
+                        opacity: isRest ? 0.4 : 1,
+                      }}
+                    >
+                      {DAY_LABELS[i]}
+                    </span>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        background: isDone ? "var(--accent)" : "transparent",
+                        border: isDone
+                          ? "none"
+                          : isRest
+                            ? "1px solid var(--line)"
+                            : "1.5px dashed var(--line-strong)",
+                        color: "#fff",
+                        opacity: isRest ? 0.5 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      aria-hidden
+                    >
+                      {isDone && (
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M5 12.5l4.5 4.5L19 7" />
+                        </svg>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -761,60 +799,57 @@ export default async function PactPage({
                     }}
                   />
                 </label>
-                <fieldset>
-                  <legend className="label">How often</legend>
-                  <div className="mt-2 flex gap-3">
-                    {(["daily", "weekly"] as const).map((freq) => (
-                      <label
-                        key={freq}
-                        className="press inline-flex flex-1 items-center justify-center gap-2 cursor-pointer"
-                        style={{
-                          minHeight: 44,
-                          borderRadius: "var(--radius)",
-                          border: "1.5px solid var(--line)",
-                          background: "var(--card-inset)",
-                          padding: "0 14px",
-                          fontFamily: "var(--font-body)",
-                          fontSize: 15,
-                          color: "var(--ink)",
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="frequency"
-                          value={freq}
-                          defaultChecked={challenge.frequency === freq}
-                          className="accent-[color:var(--accent)]"
-                        />
-                        {freq}
-                      </label>
-                    ))}
+                <HowOftenPicker
+                  defaultDays={
+                    challenge.days_of_week ?? [0, 1, 2, 3, 4, 5, 6]
+                  }
+                />
+                <input type="hidden" name="frequency" value="daily" />
+
+                <details className="group">
+                  <summary
+                    className="press flex min-h-11 cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden"
+                    style={{
+                      padding: "0 14px",
+                      background: "var(--card-inset)",
+                      border: "1px solid var(--line)",
+                      borderRadius: "var(--radius)",
+                      color: "var(--ink-soft)",
+                      fontSize: 14,
+                    }}
+                  >
+                    <span>custom dates</span>
+                    <span
+                      aria-hidden
+                      className="transition-transform group-open:rotate-180"
+                      style={{ color: "var(--mute)" }}
+                    >
+                      ▾
+                    </span>
+                  </summary>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="label">start date</span>
+                      <input
+                        name="start_date"
+                        type="date"
+                        defaultValue={challenge.start_date}
+                        className="mt-1.5 w-full outline-none"
+                        style={dateInputStyle}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="label">end date</span>
+                      <input
+                        name="end_date"
+                        type="date"
+                        defaultValue={challenge.end_date ?? ""}
+                        className="mt-1.5 w-full outline-none"
+                        style={dateInputStyle}
+                      />
+                    </label>
                   </div>
-                </fieldset>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="label">Start date</span>
-                    <input
-                      name="start_date"
-                      type="date"
-                      required
-                      defaultValue={challenge.start_date}
-                      className="mt-1.5 w-full outline-none"
-                      style={inputStyle}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="label">End date (optional)</span>
-                    <input
-                      name="end_date"
-                      type="date"
-                      defaultValue={challenge.end_date ?? ""}
-                      className="mt-1.5 w-full outline-none"
-                      style={inputStyle}
-                    />
-                  </label>
-                </div>
+                </details>
                 <SubmitButton pendingLabel="saving…" style={primaryStyle}>
                   save changes
                 </SubmitButton>
@@ -865,6 +900,18 @@ const inputStyle: React.CSSProperties = {
   fontSize: 16,
   color: "var(--ink)",
   fontFamily: "var(--font-body)",
+};
+
+const dateInputStyle: React.CSSProperties = {
+  height: 44,
+  background: "var(--card-inset)",
+  border: "1.5px solid var(--line)",
+  borderRadius: "var(--radius-sm)",
+  padding: "0 12px",
+  fontSize: 14,
+  color: "var(--ink)",
+  fontFamily: "var(--font-body)",
+  textAlign: "left",
 };
 
 const primaryStyle: React.CSSProperties = {

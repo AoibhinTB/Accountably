@@ -35,6 +35,7 @@ type PactRow = {
       id: string;
       frequency: "daily" | "weekly";
       archived: boolean;
+      days_of_week: number[] | null;
     }[];
   } | null;
 };
@@ -85,7 +86,9 @@ export default async function FeedPage() {
   // doubly-nested filter syntax.
   const { data: pactRows, error: pactRowsError } = await supabase
     .from("group_members")
-    .select("groups(id, name, icon, challenges(id, frequency, archived))")
+    .select(
+      "groups(id, name, icon, challenges(id, frequency, archived, days_of_week))",
+    )
     .eq("user_id", user.id)
     .returns<PactRow[]>();
 
@@ -126,18 +129,35 @@ export default async function FeedPage() {
     completionsByChallenge.set(c.challenge_id, list);
   }
 
-  const todayPacts: TodayPact[] = pactsWithChallenge.map((p) => {
-    const ts = completionsByChallenge.get(p.challenge.id) ?? [];
-    const threshold = p.challenge.frequency === "daily" ? dayStart : weekStart;
-    const done = ts.some((t) => new Date(t) >= threshold);
-    return {
-      id: p.groupId,
-      name: p.name,
-      icon: p.icon,
-      frequency: p.challenge.frequency,
-      doneThisPeriod: done,
-    };
-  });
+  // dayIdx: 0=Mon ... 6=Sun. UTC getDay returns 0=Sun ... 6=Sat.
+  const todayDayIdx = (now.getUTCDay() + 6) % 7;
+
+  const todayPacts: TodayPact[] = pactsWithChallenge
+    .filter((p) => {
+      // Skip pacts that don't require today (e.g. weekdays-only on a Sat).
+      const dow = p.challenge.days_of_week;
+      if (
+        p.challenge.frequency === "daily" &&
+        dow &&
+        dow.length > 0 &&
+        !dow.includes(todayDayIdx)
+      ) {
+        return false;
+      }
+      return true;
+    })
+    .map((p) => {
+      const ts = completionsByChallenge.get(p.challenge.id) ?? [];
+      const threshold = p.challenge.frequency === "daily" ? dayStart : weekStart;
+      const done = ts.some((t) => new Date(t) >= threshold);
+      return {
+        id: p.groupId,
+        name: p.name,
+        icon: p.icon,
+        frequency: p.challenge.frequency,
+        doneThisPeriod: done,
+      };
+    });
 
   // Global feed (recent completions across all my groups)
   const { data } = await supabase

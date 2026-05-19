@@ -1,6 +1,6 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Squiggle } from "@/components/ui/squiggle";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -13,20 +13,17 @@ export default async function Home() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center gap-8 px-6">
       <div className="text-center">
-        <h1
-          className="m-0"
-          style={{
-            fontFamily: "var(--font-display)",
-            fontStyle: "italic",
-            fontSize: 60,
-            lineHeight: 0.95,
-            color: "var(--ink)",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          accountably<span style={{ color: "var(--accent)" }}>.</span>
+        <h1 className="m-0" style={{ lineHeight: 0 }}>
+          <span className="sr-only">Accountably</span>
+          <Image
+            src="/wordmark.png"
+            alt=""
+            width={800}
+            height={228}
+            priority
+            style={{ width: "100%", height: "auto", maxWidth: 320 }}
+          />
         </h1>
-        <Squiggle width={100} className="mx-auto" />
         <p
           className="mt-4"
           style={{ color: "var(--ink-soft)", fontSize: 18, lineHeight: 1.35 }}

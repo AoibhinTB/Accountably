@@ -14,16 +14,27 @@ export function startOfPeriodUTC(frequency: Frequency, now: Date = new Date()): 
   return d;
 }
 
-// Day index 0 = Monday, 6 = Sunday. A day's dot fills only when *every
-// member who was a member by the end of that day* has at least one
-// completion that day. New joiners are exempt for days before they joined
-// — they can't retroactively complete what they weren't part of.
+// Per-day state for the week-summary row. Day index 0 = Mon ... 6 = Sun.
+// - "done" = every member who was in the pact by end of that day completed it
+// - "pending" = a required day not yet (or not fully) completed
+// - "rest" = the pact doesn't require this day (e.g. weekends on a weekdays pact)
+export type WeekDay = "done" | "pending" | "rest";
+
 export function buildWeekDots(
   completions: { completed_at: string; user_id: string }[],
   members: { user_id: string; joined_at: string }[],
+  daysOfWeek: number[] | null,
   now: Date = new Date(),
-): boolean[] {
-  if (members.length === 0) return Array(7).fill(false) as boolean[];
+): WeekDay[] {
+  const required = (i: number) =>
+    daysOfWeek === null || daysOfWeek.length === 0 || daysOfWeek.includes(i);
+
+  if (members.length === 0) {
+    return Array(7)
+      .fill(0)
+      .map((_, i) => (required(i) ? "pending" : "rest")) as WeekDay[];
+  }
+
   const weekStart = startOfPeriodUTC("weekly", now);
   const dayMs = 24 * 60 * 60 * 1000;
 
@@ -40,39 +51,63 @@ export function buildWeekDots(
   }));
 
   return usersByDay.map((doneSet, idx) => {
+    if (!required(idx)) return "rest";
     const dayEnd = weekStart.getTime() + (idx + 1) * dayMs;
     const expected = memberJoinTimes.filter((m) => m.joinedAt < dayEnd);
-    if (expected.length === 0) return false;
-    return expected.every((m) => doneSet.has(m.user_id));
+    if (expected.length === 0) return "pending";
+    return expected.every((m) => doneSet.has(m.user_id)) ? "done" : "pending";
   });
 }
 
 // The user's current consecutive completion streak for one challenge.
-// Daily: consecutive days. Weekly: consecutive weeks. A period the user
-// hasn't completed yet doesn't break the streak — they might still complete
-// today/this week. The streak is the length of the run preceding that.
+// Daily: consecutive required days. Weekly: consecutive weeks.
+// When daysOfWeek is set, non-required days (e.g. weekends on a weekdays
+// pact) are skipped — they don't count toward the streak and don't break
+// it. A period the user hasn't completed yet doesn't break the streak —
+// they might still complete today/this week.
 export function currentStreak(
   completedAts: string[],
   frequency: Frequency,
+  daysOfWeek: number[] | null = null,
   now: Date = new Date(),
 ): number {
   const stepMs = (frequency === "daily" ? 1 : 7) * 24 * 60 * 60 * 1000;
   const keyOf = (d: Date) =>
     startOfPeriodUTC(frequency, d).toISOString().slice(0, 10);
-  const completedKeys = new Set(
-    completedAts.map((t) => keyOf(new Date(t))),
-  );
+  const completedKeys = new Set(completedAts.map((t) => keyOf(new Date(t))));
 
+  // dayIdx: 0=Mon ... 6=Sun. UTC getDay returns 0=Sun ... 6=Sat.
+  const dayIdxOf = (d: Date) => (d.getUTCDay() + 6) % 7;
+  const dayRequired = (d: Date) =>
+    frequency !== "daily" ||
+    daysOfWeek === null ||
+    daysOfWeek.length === 0 ||
+    daysOfWeek.includes(dayIdxOf(d));
+
+  // Walk back from the current period. Skip rest days; require completion
+  // on required days.
   let cursor = startOfPeriodUTC(frequency, now);
-  if (!completedKeys.has(keyOf(cursor))) {
+
+  // If today is required but not completed, don't break the streak yet —
+  // back up to the previous step and resume. (Tomorrow problem either way.)
+  if (dayRequired(cursor) && !completedKeys.has(keyOf(cursor))) {
     cursor = new Date(cursor.getTime() - stepMs);
   }
 
   const MAX = frequency === "daily" ? 365 : 52;
   let streak = 0;
-  while (completedKeys.has(keyOf(cursor)) && streak < MAX) {
+  let steps = 0;
+  while (steps < MAX * 2) {
+    if (!dayRequired(cursor)) {
+      cursor = new Date(cursor.getTime() - stepMs);
+      steps++;
+      continue;
+    }
+    if (!completedKeys.has(keyOf(cursor))) break;
     streak++;
     cursor = new Date(cursor.getTime() - stepMs);
+    steps++;
+    if (streak >= MAX) break;
   }
   return streak;
 }

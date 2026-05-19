@@ -7,17 +7,28 @@ import { startOfPeriodUTC, type Frequency } from "@/lib/period";
 
 const isFrequency = (v: string): v is Frequency => v === "daily" || v === "weekly";
 
+const parseDaysOfWeek = (raw: FormDataEntryValue | null): number[] | null => {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (!s) return null;
+  const days = s
+    .split(",")
+    .map((d) => parseInt(d, 10))
+    .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+  const unique = Array.from(new Set(days)).sort((a, b) => a - b);
+  return unique.length > 0 ? unique : null;
+};
+
 export async function createPact(formData: FormData) {
   const supabase = await createClient();
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) {
-    redirect("/pacts?error=Name+is+required");
+    redirect("/pacts/new?error=Name+is+required");
   }
 
-  const frequency = String(formData.get("frequency") ?? "");
+  const frequency = String(formData.get("frequency") ?? "daily");
   if (!isFrequency(frequency)) {
-    redirect("/pacts?error=Frequency+must+be+daily+or+weekly");
+    redirect("/pacts/new?error=Invalid+frequency");
   }
 
   const startDateRaw = String(formData.get("start_date") ?? "").trim();
@@ -32,6 +43,8 @@ export async function createPact(formData: FormData) {
   const iconRaw = String(formData.get("icon") ?? "").trim();
   const icon = iconRaw && iconRaw.length <= 16 ? iconRaw : null;
 
+  const daysOfWeek = parseDaysOfWeek(formData.get("days_of_week"));
+
   const { data, error } = await supabase.rpc("create_pact", {
     p_name: name,
     p_frequency: frequency,
@@ -39,11 +52,12 @@ export async function createPact(formData: FormData) {
     p_end_date: endDate,
     p_description: description,
     p_icon: icon,
+    p_days_of_week: daysOfWeek,
   });
 
   if (error || !data) {
     redirect(
-      `/pacts?error=${encodeURIComponent(error?.message ?? "Could not create pact")}`,
+      `/pacts/new?error=${encodeURIComponent(error?.message ?? "Could not create pact")}`,
     );
   }
 
@@ -86,6 +100,8 @@ export async function updatePact(formData: FormData) {
   const iconRaw = String(formData.get("icon") ?? "").trim();
   const icon = iconRaw && iconRaw.length <= 16 ? iconRaw : null;
 
+  const daysOfWeek = parseDaysOfWeek(formData.get("days_of_week"));
+
   const { data: groupUpdate, error: groupErr } = await supabase
     .from("groups")
     .update({ name, icon })
@@ -108,6 +124,7 @@ export async function updatePact(formData: FormData) {
       frequency,
       start_date: startDateRaw,
       end_date: endDate,
+      days_of_week: daysOfWeek,
     })
     .eq("group_id", pactId)
     .eq("archived", false);
