@@ -64,7 +64,7 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
                   : `Log ${p.name} for ${p.frequency === "daily" ? "today" : "this week"}`
               }
               className="press flex flex-col items-center gap-1.5"
-              style={{ width: 96 }}
+              style={{ width: 96, touchAction: "pan-x" }}
             >
               <CompletionDisk done={p.doneThisPeriod} icon={p.icon} />
               <div
@@ -87,7 +87,7 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
           <Link
             href="/pacts"
             className="press flex flex-col items-center gap-1.5"
-            style={{ width: 96 }}
+            style={{ width: 96, touchAction: "pan-x" }}
           >
             <div
               style={{

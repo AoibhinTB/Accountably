@@ -77,10 +77,10 @@ export function BottomTabBar() {
           maxWidth: "calc(42rem - 24px)",
           height: 64,
           borderRadius: 999,
-          background: "var(--ink)",
+          background: "var(--ink-soft)",
           padding: "0 6px",
           boxShadow:
-            "0 8px 30px rgba(42, 31, 24, 0.25), 0 0 0 1px rgba(0,0,0,0.05)",
+            "0 8px 30px rgba(42, 31, 24, 0.18), 0 0 0 1px rgba(0,0,0,0.04)",
         }}
       >
         {tabs.map((tab) => {

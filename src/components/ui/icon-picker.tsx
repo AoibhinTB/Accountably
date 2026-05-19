@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 export const PACT_ICON_OPTIONS = [
   "🧘",
   "💪",
@@ -13,7 +17,7 @@ export const PACT_ICON_OPTIONS = [
   "🎨",
 ] as const;
 
-const TILE_STYLE: React.CSSProperties = {
+const TILE_BASE: React.CSSProperties = {
   width: 48,
   height: 48,
   borderRadius: "var(--radius-sm)",
@@ -29,6 +33,12 @@ const TILE_STYLE: React.CSSProperties = {
   flexShrink: 0,
 };
 
+const TILE_SELECTED: React.CSSProperties = {
+  background: "var(--accent-soft)",
+  borderColor: "var(--accent)",
+  boxShadow: "0 0 0 1px var(--accent)",
+};
+
 export function IconPicker({
   defaultValue,
   name = "icon",
@@ -38,54 +48,75 @@ export function IconPicker({
   name?: string;
   legend?: string;
 }) {
-  const current = defaultValue ?? "";
+  const [selected, setSelected] = useState<string>(defaultValue ?? "");
+
   return (
     <fieldset>
       <legend className="label">{legend}</legend>
+      <input type="hidden" name={name} value={selected} />
       <div
         className="mt-2 flex gap-2 overflow-x-auto px-1 py-2 no-scrollbar"
         style={{
-          WebkitOverflowScrolling: "touch",
           scrollPaddingLeft: 4,
           scrollPaddingRight: 4,
           touchAction: "pan-x",
           overscrollBehaviorX: "contain",
         }}
       >
-        <label
-          className="press has-[input:checked]:ring-2 has-[input:checked]:ring-[color:var(--accent)] has-[input:checked]:bg-[color:var(--accent-soft)]"
-          style={TILE_STYLE}
+        <Tile
+          aria-label="No icon"
+          ariaPressed={selected === ""}
+          onClick={() => setSelected("")}
+          selected={selected === ""}
         >
-          <input
-            type="radio"
-            name={name}
-            value=""
-            defaultChecked={!current}
-            className="sr-only"
-          />
           <span aria-hidden style={{ color: "var(--mute)", fontSize: 20 }}>
             —
           </span>
-          <span className="sr-only">No icon</span>
-        </label>
-        {PACT_ICON_OPTIONS.map((emoji) => (
-          <label
-            key={emoji}
-            className="press has-[input:checked]:ring-2 has-[input:checked]:ring-[color:var(--accent)] has-[input:checked]:bg-[color:var(--accent-soft)]"
-            style={TILE_STYLE}
-          >
-            <input
-              type="radio"
-              name={name}
-              value={emoji}
-              defaultChecked={current === emoji}
-              className="sr-only"
-            />
-            <span aria-hidden>{emoji}</span>
-            <span className="sr-only">{emoji}</span>
-          </label>
-        ))}
+        </Tile>
+        {PACT_ICON_OPTIONS.map((emoji) => {
+          const on = selected === emoji;
+          return (
+            <Tile
+              key={emoji}
+              aria-label={emoji}
+              ariaPressed={on}
+              onClick={() => setSelected(emoji)}
+              selected={on}
+            >
+              <span aria-hidden>{emoji}</span>
+            </Tile>
+          );
+        })}
       </div>
     </fieldset>
+  );
+}
+
+function Tile({
+  children,
+  onClick,
+  selected,
+  ariaPressed,
+  ...rest
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  selected: boolean;
+  ariaPressed: boolean;
+  "aria-label": string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={ariaPressed}
+      aria-label={rest["aria-label"]}
+      style={{
+        ...TILE_BASE,
+        ...(selected ? TILE_SELECTED : null),
+      }}
+    >
+      {children}
+    </button>
   );
 }
