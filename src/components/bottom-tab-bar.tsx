@@ -40,9 +40,13 @@ const tabs = [
     Icon: FeedIcon,
   },
   {
-    href: "/groups",
-    label: "Groups",
-    match: (p: string) => p === "/groups" || p.startsWith("/groups/"),
+    href: "/pacts",
+    label: "Pacts",
+    match: (p: string) =>
+      p === "/pacts" ||
+      p.startsWith("/pacts/") ||
+      p === "/groups" ||
+      p.startsWith("/groups/"),
     Icon: GroupsIcon,
   },
   {
@@ -53,7 +57,7 @@ const tabs = [
   },
 ];
 
-const HIDDEN_PREFIXES = ["/login", "/auth", "/join"];
+const HIDDEN_PREFIXES = ["/login", "/auth", "/join", "/signup-confirm"];
 
 export function BottomTabBar() {
   const pathname = usePathname();

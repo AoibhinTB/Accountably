@@ -40,7 +40,7 @@ export async function signup(formData: FormData) {
   const password = String(formData.get("password"));
   const displayName = String(formData.get("display_name"));
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -52,6 +52,17 @@ export async function signup(formData: FormData) {
     loginRedirect(error.message, next);
   }
 
-  revalidatePath("/", "layout");
-  redirect(next);
+  // If Supabase's email confirmation is on, signUp returns a user but no
+  // session — the user must click the link in their inbox first. Send them
+  // to a dedicated "check your email" screen rather than the home redirect
+  // (which would bounce them right back to /login and look like the signup
+  // silently failed).
+  const params = new URLSearchParams({ email });
+  if (data?.session) {
+    // Confirmation disabled — they're signed in immediately, send them on.
+    revalidatePath("/", "layout");
+    redirect(next);
+  }
+  if (next !== "/") params.set("next", next);
+  redirect(`/signup-confirm?${params.toString()}`);
 }

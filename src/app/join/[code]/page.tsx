@@ -9,11 +9,16 @@ export default async function JoinPage({
   const { code } = await params;
   const supabase = await createClient();
 
-  const { data: groupId, error } = await supabase.rpc("join_group_with_invite_code", { code });
+  const { data: groupId, error } = await supabase.rpc(
+    "join_group_with_invite_code",
+    { code },
+  );
 
   if (error || !groupId) {
-    redirect(`/groups?error=${encodeURIComponent(error?.message ?? "Invalid invite code")}`);
+    redirect(
+      `/pacts?error=${encodeURIComponent(error?.message ?? "Invalid invite code")}`,
+    );
   }
 
-  redirect(`/groups/${groupId}`);
+  redirect(`/pacts/${groupId}`);
 }

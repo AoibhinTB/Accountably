@@ -8,6 +8,10 @@ export type CompletionItemData = {
   userName: string;
   completedAt: string;
   note: string | null;
+  // Single pact reference — group and challenge share a name in the
+  // post-merge model. We keep the props named `challengeName`/`challengeHref`
+  // so callers from before the merge work without churn; semantically these
+  // are pact name + pact href.
   groupName?: string;
   groupHref?: string;
   challengeName?: string;
@@ -30,6 +34,11 @@ export function CompletionItem({
   item: CompletionItemData;
   revalidatePath: string;
 }) {
+  // Prefer the explicit challenge label if present (post-merge: it's the pact
+  // name). Fall back to groupName so legacy callers still render something.
+  const pactName = item.challengeName ?? item.groupName;
+  const pactHref = item.challengeHref ?? item.groupHref;
+
   return (
     <li className="relative">
       <div
@@ -47,12 +56,12 @@ export function CompletionItem({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline gap-x-1.5">
               <span style={{ fontWeight: 600 }}>{item.userName}</span>
-              {item.challengeName && (
+              {pactName && (
                 <>
                   <span style={{ color: "var(--mute)", fontSize: 13 }}>·</span>
-                  {item.challengeHref ? (
+                  {pactHref ? (
                     <Link
-                      href={item.challengeHref}
+                      href={pactHref}
                       style={{
                         fontFamily: "var(--font-display)",
                         fontStyle: "italic",
@@ -64,7 +73,7 @@ export function CompletionItem({
                         textUnderlineOffset: 3,
                       }}
                     >
-                      {item.challengeName}
+                      {pactName}
                     </Link>
                   ) : (
                     <span
@@ -75,42 +84,20 @@ export function CompletionItem({
                         color: "var(--ink)",
                       }}
                     >
-                      {item.challengeName}
+                      {pactName}
                     </span>
                   )}
                 </>
               )}
             </div>
-            <div className="label mt-0.5 flex items-baseline gap-1.5">
-              <span>{formatCompletedAt(item.completedAt)}</span>
-              {item.groupName && item.groupHref && (
-                <>
-                  <span aria-hidden>·</span>
-                  <Link
-                    href={item.groupHref}
-                    style={{ color: "var(--mute)" }}
-                  >
-                    {item.groupName}
-                  </Link>
-                </>
-              )}
-              {item.groupName && !item.groupHref && (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>{item.groupName}</span>
-                </>
-              )}
-            </div>
+            <div className="label mt-0.5">{formatCompletedAt(item.completedAt)}</div>
           </div>
         </div>
 
         {item.note && (
           <div
             className="note mt-3"
-            style={{
-              paddingLeft: 12,
-              borderLeft: "2px solid var(--accent)",
-            }}
+            style={{ paddingLeft: 12, borderLeft: "2px solid var(--accent)" }}
           >
             &ldquo;{item.note}&rdquo;
           </div>
