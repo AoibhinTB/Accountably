@@ -100,15 +100,15 @@ export function ReactionBar({
           aria-label="Add reaction"
           className="press flex cursor-pointer list-none items-center justify-center [&::-webkit-details-marker]:hidden"
           style={{
-            width: 36,
-            height: 36,
+            width: 26,
+            height: 26,
             borderRadius: "50%",
             background: "var(--card)",
             border: "1px solid var(--line-strong)",
             color: "var(--mute)",
-            fontSize: 18,
+            fontSize: 14,
             lineHeight: 1,
-            boxShadow: "0 2px 4px rgba(42, 31, 24, 0.08)",
+            boxShadow: "0 1px 3px rgba(42, 31, 24, 0.08)",
           }}
         >
           <span aria-hidden>+</span>
