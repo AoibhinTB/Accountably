@@ -236,7 +236,18 @@ export default async function YouPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div style={{ fontWeight: 500, fontSize: 15 }}>{p.name}</div>
-                    <div className="label mt-0.5">{p.challenge.frequency}</div>
+                    <div className="label mt-0.5">
+                      {p.challenge.frequency === "weekly"
+                        ? "once a week"
+                        : p.challenge.days_of_week &&
+                            p.challenge.days_of_week.length > 0 &&
+                            p.challenge.days_of_week.length < 7
+                          ? p.challenge.days_of_week.length === 5 &&
+                            p.challenge.days_of_week.every((d, i) => d === i)
+                            ? "weekdays"
+                            : "custom"
+                          : "every day"}
+                    </div>
                   </div>
                   <div
                     style={{

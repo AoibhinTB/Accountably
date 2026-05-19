@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
 import { Squiggle } from "@/components/ui/squiggle";
+import { formatDate } from "@/lib/period";
 import { joinPactByCode } from "./actions";
 
 type Membership = {
@@ -18,8 +19,25 @@ type Membership = {
       start_date: string;
       end_date: string | null;
       archived: boolean;
+      days_of_week: number[] | null;
     }[];
   } | null;
+};
+
+const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+const cadenceLabel = (
+  frequency: "daily" | "weekly",
+  daysOfWeek: number[] | null,
+): string => {
+  if (frequency === "weekly") return "once a week";
+  if (!daysOfWeek || daysOfWeek.length === 0) return "every day";
+  const sorted = [...daysOfWeek].sort((a, b) => a - b);
+  if (sorted.length === 7) return "every day";
+  if (sorted.length === 5 && sorted.every((d, i) => d === i)) return "weekdays";
+  if (sorted.length === 2 && sorted[0] === 5 && sorted[1] === 6) return "weekends";
+  if (sorted.length === 1) return DAY_SHORT[sorted[0]];
+  return sorted.map((d) => DAY_SHORT[d]).join(", ");
 };
 
 type MemberRow = {
@@ -51,7 +69,7 @@ export default async function PactsPage({
   const { data: memberships } = await supabase
     .from("group_members")
     .select(
-      "joined_at, groups(id, name, icon, created_at, challenges(id, frequency, start_date, end_date, archived))",
+      "joined_at, groups(id, name, icon, created_at, challenges(id, frequency, start_date, end_date, archived, days_of_week))",
     )
     .eq("user_id", user?.id ?? "")
     .order("joined_at", { ascending: false })
@@ -159,8 +177,10 @@ export default async function PactsPage({
                   {p.name}
                 </div>
                 <div className="label mt-1">
-                  {p.active ? p.active.frequency : "no active challenge"}
-                  {p.active && ` · since ${new Date(p.active.start_date).toLocaleDateString()}`}
+                  {p.active
+                    ? cadenceLabel(p.active.frequency, p.active.days_of_week)
+                    : "no active challenge"}
+                  {p.active && ` · since ${formatDate(p.active.start_date)}`}
                 </div>
                 {p.members.length > 0 && (
                   <div className="mt-2 flex items-center gap-2">

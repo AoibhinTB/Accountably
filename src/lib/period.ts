@@ -112,6 +112,15 @@ export function currentStreak(
   return streak;
 }
 
+// Date in dd/mm/yy. Accepts an ISO string or a date-only string (YYYY-MM-DD).
+export function formatDate(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear() % 100).padStart(2, "0");
+  return `${dd}/${mm}/${yy}`;
+}
+
 export function timeAgo(iso: string, now: Date = new Date()): string {
   const diffMs = now.getTime() - new Date(iso).getTime();
   if (diffMs < 60_000) return "just now";

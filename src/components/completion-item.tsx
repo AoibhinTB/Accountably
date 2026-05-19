@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatDate } from "@/lib/period";
 import { ReactionBar } from "./reactions/reaction-bar";
 import type { ReactionSummary } from "./reactions/constants";
 import { Avatar } from "./ui/avatar";
@@ -21,7 +22,7 @@ export type CompletionItemData = {
 
 const formatCompletedAt = (iso: string) => {
   const d = new Date(iso);
-  return `${d.toLocaleDateString()} · ${d.toLocaleTimeString([], {
+  return `${formatDate(d)} · ${d.toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
   })}`;

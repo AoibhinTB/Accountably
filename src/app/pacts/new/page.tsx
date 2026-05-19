@@ -159,11 +159,6 @@ export default async function NewPactPage({
           </div>
         </details>
 
-        {/* Hidden frequency value — new pacts use days_of_week as the source
-            of truth; we set frequency='daily' so the existing enum stays
-            populated. */}
-        <input type="hidden" name="frequency" value="daily" />
-
         <SubmitButton
           pendingLabel="starting…"
           className="w-full"

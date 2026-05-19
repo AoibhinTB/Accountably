@@ -16,39 +16,51 @@ const DAY_FULL = [
   "Sunday",
 ] as const;
 
-type Mode = "every" | "weekdays" | "custom";
+type Mode = "every" | "weekdays" | "custom" | "weekly";
 
 const sameSet = (a: number[], b: number[]) =>
   a.length === b.length && a.every((x) => b.includes(x));
 
-const modeFor = (days: number[]): Mode => {
+// Pick the matching mode from an existing pact's data.
+const modeFor = (
+  frequency: "daily" | "weekly",
+  days: number[] | null,
+): Mode => {
+  if (frequency === "weekly") return "weekly";
+  if (!days || days.length === 0) return "every";
   if (sameSet(days, EVERY_DAY)) return "every";
   if (sameSet(days, WEEKDAYS)) return "weekdays";
   return "custom";
 };
 
 export function HowOftenPicker({
+  defaultFrequency = "daily",
   defaultDays = EVERY_DAY,
-  name = "days_of_week",
+  daysName = "days_of_week",
+  frequencyName = "frequency",
 }: {
-  defaultDays?: number[];
-  name?: string;
+  defaultFrequency?: "daily" | "weekly";
+  defaultDays?: number[] | null;
+  daysName?: string;
+  frequencyName?: string;
 }) {
-  const safeDefault =
-    defaultDays && defaultDays.length > 0 ? defaultDays : EVERY_DAY;
-  const [mode, setMode] = useState<Mode>(modeFor(safeDefault));
+  const initial = modeFor(defaultFrequency, defaultDays ?? null);
+  const [mode, setMode] = useState<Mode>(initial);
   const [customDays, setCustomDays] = useState<number[]>(
-    modeFor(safeDefault) === "custom"
-      ? [...safeDefault].sort((a, b) => a - b)
+    initial === "custom"
+      ? [...(defaultDays ?? [0, 2, 4])].sort((a, b) => a - b)
       : [0, 2, 4],
   );
 
-  const days =
+  // Compute the form's hidden values from the current mode + customDays.
+  const { frequency, days } =
     mode === "every"
-      ? EVERY_DAY
+      ? { frequency: "daily" as const, days: EVERY_DAY }
       : mode === "weekdays"
-        ? WEEKDAYS
-        : customDays;
+        ? { frequency: "daily" as const, days: WEEKDAYS }
+        : mode === "custom"
+          ? { frequency: "daily" as const, days: customDays }
+          : { frequency: "weekly" as const, days: [] as number[] };
 
   const toggleDay = (d: number) => {
     setCustomDays((prev) => {
@@ -61,9 +73,10 @@ export function HowOftenPicker({
   };
 
   return (
-    <fieldset>
+    <fieldset style={{ minWidth: 0 }}>
       <legend className="label">how often</legend>
-      <input type="hidden" name={name} value={days.join(",")} />
+      <input type="hidden" name={frequencyName} value={frequency} />
+      <input type="hidden" name={daysName} value={days.join(",")} />
 
       <div className="mt-2 flex flex-col gap-2">
         <OptionCard
@@ -79,10 +92,16 @@ export function HowOftenPicker({
           subtitle="mon — fri"
         />
         <OptionCard
+          selected={mode === "weekly"}
+          onClick={() => setMode("weekly")}
+          title="once a week"
+          subtitle="any day counts"
+        />
+        <OptionCard
           selected={mode === "custom"}
           onClick={() => setMode("custom")}
           title="custom"
-          subtitle="your call"
+          subtitle="pick your days"
         />
       </div>
 

@@ -17,7 +17,13 @@ import { Avatar } from "@/components/ui/avatar";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { Squiggle } from "@/components/ui/squiggle";
-import { buildWeekDots, startOfPeriodUTC, timeAgo, type WeekDay } from "@/lib/period";
+import {
+  buildWeekDots,
+  formatDate,
+  startOfPeriodUTC,
+  timeAgo,
+  type WeekDay,
+} from "@/lib/period";
 import { IconEditTrigger } from "./icon-edit-trigger";
 import {
   deletePact,
@@ -78,18 +84,15 @@ const dayLabel = (key: string, now: Date = new Date()) => {
 
   if (key === todayKey) return "today";
   if (key === yesterdayKey) return "yesterday";
-  return new Date(key + "T00:00:00Z").toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDate(key + "T00:00:00Z");
 };
 
 const cadenceLabel = (
   frequency: "daily" | "weekly",
   daysOfWeek: number[] | null,
 ): string => {
-  if (!daysOfWeek || daysOfWeek.length === 0) return frequency;
+  if (frequency === "weekly") return "once a week";
+  if (!daysOfWeek || daysOfWeek.length === 0) return "every day";
   const sorted = [...daysOfWeek].sort((a, b) => a - b);
   if (sorted.length === 7) return "every day";
   if (sorted.length === 5 && sorted.every((d, i) => d === i)) return "weekdays";
@@ -291,9 +294,8 @@ export default async function PactPage({
               {cadenceLabel(challenge.frequency, challenge.days_of_week)}
             </span>
             <span className="label">
-              since {new Date(challenge.start_date).toLocaleDateString()}
-              {challenge.end_date &&
-                ` · until ${new Date(challenge.end_date).toLocaleDateString()}`}
+              since {formatDate(challenge.start_date)}
+              {challenge.end_date && ` · until ${formatDate(challenge.end_date)}`}
             </span>
           </div>
         )}
@@ -805,7 +807,7 @@ export default async function PactPage({
                       )}
                     </div>
                     <div className="label mt-0.5">
-                      joined {new Date(m.joined_at).toLocaleDateString()}
+                      joined {formatDate(m.joined_at)}
                     </div>
                   </div>
                 </li>
@@ -887,11 +889,11 @@ export default async function PactPage({
                   />
                 </label>
                 <HowOftenPicker
+                  defaultFrequency={challenge.frequency}
                   defaultDays={
                     challenge.days_of_week ?? [0, 1, 2, 3, 4, 5, 6]
                   }
                 />
-                <input type="hidden" name="frequency" value="daily" />
 
                 <details className="group">
                   <summary
