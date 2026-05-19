@@ -68,7 +68,7 @@ export function BottomTabBar() {
       aria-label="Primary"
       className="fixed inset-x-3 z-40"
       style={{
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 5px)",
       }}
     >
       <ul
