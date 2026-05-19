@@ -389,10 +389,10 @@ export default async function PactPage({
         />
       </section>
 
-      <section className="px-5 pt-5">
+      <section className="px-5 pt-8">
         <details className="group">
           <summary
-            className="press inline-flex min-h-12 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
+            className="press flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden"
             style={{
               background: "var(--card)",
               border: "1px solid var(--line)",
@@ -403,7 +403,27 @@ export default async function PactPage({
               color: "var(--ink)",
             }}
           >
-            <span>invite friends</span>
+            <span className="inline-flex items-center gap-2">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <circle cx="9" cy="9" r="3.4" />
+                <circle cx="17" cy="11" r="2.6" />
+                <path d="M3.5 19c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5M14 18c.4-1.8 1.8-3 3.2-3s2.6.8 3.3 2" />
+              </svg>
+              <span>
+                members &amp; invite
+                {members && members.length > 0 ? ` · ${members.length}` : ""}
+              </span>
+            </span>
             <span
               aria-hidden
               className="transition-transform group-open:rotate-180"
@@ -420,59 +440,57 @@ export default async function PactPage({
               borderRadius: "var(--radius)",
             }}
           >
-            <p className="mb-3 text-xs" style={{ color: "var(--mute)" }}>
+            <div className="label mb-2">members ({members?.length ?? 0})</div>
+            <ul
+              className="overflow-hidden"
+              style={{
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--line)",
+              }}
+            >
+              {(members ?? []).map((m, i, arr) => (
+                <li
+                  key={m.user_id}
+                  className="flex items-center gap-3 p-3"
+                  style={{
+                    borderBottom:
+                      i < arr.length - 1 ? "1px solid var(--line)" : "none",
+                  }}
+                >
+                  <Avatar name={m.profiles?.display_name ?? "?"} size={34} />
+                  <div className="flex-1 min-w-0">
+                    <div style={{ fontWeight: 500, fontSize: 15 }}>
+                      {m.profiles?.display_name ?? "unknown"}
+                      {m.user_id === pact.created_by && (
+                        <span
+                          className="ml-2"
+                          style={{
+                            fontFamily: "var(--font-stat-mono)",
+                            fontSize: 10,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            color: "var(--accent)",
+                          }}
+                        >
+                          creator
+                        </span>
+                      )}
+                    </div>
+                    <div className="label mt-0.5">
+                      joined {new Date(m.joined_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="label mt-5 mb-2">invite</div>
+            <p className="mb-2 text-xs" style={{ color: "var(--mute)" }}>
               anyone with this link can join the pact.
             </p>
             <InviteLink url={inviteUrl} code={pact.invite_code} />
           </div>
         </details>
-      </section>
-
-      <section className="px-5 pt-5">
-        <div className="label mb-2">members ({members?.length ?? 0})</div>
-        <ul
-          className="overflow-hidden"
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--line)",
-            borderRadius: "var(--radius)",
-          }}
-        >
-          {(members ?? []).map((m, i, arr) => (
-            <li
-              key={m.user_id}
-              className="flex items-center gap-3 p-3"
-              style={{
-                borderBottom:
-                  i < arr.length - 1 ? "1px solid var(--line)" : "none",
-              }}
-            >
-              <Avatar name={m.profiles?.display_name ?? "?"} size={34} />
-              <div className="flex-1 min-w-0">
-                <div style={{ fontWeight: 500, fontSize: 15 }}>
-                  {m.profiles?.display_name ?? "unknown"}
-                  {m.user_id === pact.created_by && (
-                    <span
-                      className="ml-2"
-                      style={{
-                        fontFamily: "var(--font-stat-mono)",
-                        fontSize: 10,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "var(--accent)",
-                      }}
-                    >
-                      creator
-                    </span>
-                  )}
-                </div>
-                <div className="label mt-0.5">
-                  joined {new Date(m.joined_at).toLocaleDateString()}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
       </section>
 
       {isCreator && challenge && (
