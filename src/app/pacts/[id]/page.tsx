@@ -19,6 +19,7 @@ import { IconPicker } from "@/components/ui/icon-picker";
 import { Squiggle } from "@/components/ui/squiggle";
 import {
   buildWeekDots,
+  currentGroupStreak,
   formatDate,
   startOfPeriodUTC,
   timeAgo,
@@ -139,8 +140,20 @@ export default async function PactPage({
   const weekStart =
     challenge?.frequency === "daily" ? startOfPeriodUTC("weekly") : null;
 
-  // Phase 2: members + the three completion queries all fan out in parallel.
-  // They each depend on pact/challenge but not on each other.
+  // Phase 2: members + feed completions + recent (60-day) completions in
+  // parallel. The 60-day query powers all three of: per-member current-period
+  // status, the week-dots, and the group-streak walk. One query instead of
+  // three — saves two round trips.
+  const lookback60 = new Date();
+  lookback60.setUTCDate(lookback60.getUTCDate() - 60);
+
+  type LightCompletion = {
+    id: string;
+    user_id: string;
+    completed_at: string;
+    note: string | null;
+  };
+
   const membersPromise = supabase
     .from("group_members")
     .select("user_id, joined_at, profiles(display_name, avatar_url)")
@@ -160,45 +173,37 @@ export default async function PactPage({
         .returns<CompletionRow[]>()
     : Promise.resolve({ data: [] as CompletionRow[] });
 
-  const periodCompletionsPromise =
-    challenge && periodStart
-      ? supabase
-          .from("completions")
-          .select("user_id, completed_at, note, id")
-          .eq("challenge_id", challenge.id)
-          .gte("completed_at", periodStart.toISOString())
-          .order("completed_at", { ascending: false })
-      : Promise.resolve({
-          data: [] as {
-            user_id: string;
-            completed_at: string;
-            note: string | null;
-            id: string;
-          }[],
-        });
-
-  const weekCompletionsPromise =
-    challenge && weekStart
-      ? supabase
-          .from("completions")
-          .select("completed_at, user_id")
-          .eq("challenge_id", challenge.id)
-          .gte("completed_at", weekStart.toISOString())
-      : Promise.resolve({
-          data: [] as { completed_at: string; user_id: string }[],
-        });
+  const recentCompletionsPromise = challenge
+    ? supabase
+        .from("completions")
+        .select("id, user_id, completed_at, note")
+        .eq("challenge_id", challenge.id)
+        .gte("completed_at", lookback60.toISOString())
+        .order("completed_at", { ascending: false })
+        .returns<LightCompletion[]>()
+    : Promise.resolve({ data: [] as LightCompletion[] });
 
   const [
     { data: members },
     { data: completions },
-    { data: periodCompletions },
-    { data: weekCompletions },
+    { data: recentCompletions },
   ] = await Promise.all([
     membersPromise,
     completionsPromise,
-    periodCompletionsPromise,
-    weekCompletionsPromise,
+    recentCompletionsPromise,
   ]);
+
+  // Derive period + week subsets from the 60-day data.
+  const periodCompletions = periodStart
+    ? (recentCompletions ?? []).filter(
+        (c) => new Date(c.completed_at) >= periodStart,
+      )
+    : [];
+  const weekCompletions = weekStart
+    ? (recentCompletions ?? []).filter(
+        (c) => new Date(c.completed_at) >= weekStart,
+      )
+    : [];
 
   // My current-period completion is the most recent one I've logged within
   // the period. The "add a note" disclosure binds to its id.
@@ -237,6 +242,27 @@ export default async function PactPage({
     ? weekDots.filter((s) => s === "done").length
     : 0;
   const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"] as const;
+
+  // Group streak — consecutive periods where every expected member checked in.
+  const groupStreak = challenge
+    ? currentGroupStreak(
+        recentCompletions ?? [],
+        (members ?? []).map((m) => ({
+          user_id: m.user_id,
+          joined_at: m.joined_at,
+        })),
+        challenge.frequency,
+        challenge.days_of_week,
+      )
+    : 0;
+  const groupStreakUnit =
+    challenge?.frequency === "weekly"
+      ? groupStreak === 1
+        ? "week"
+        : "weeks"
+      : groupStreak === 1
+        ? "day"
+        : "days";
 
   const completionItems: CompletionItemData[] = (completions ?? []).map(
     (row) => ({
@@ -440,6 +466,37 @@ export default async function PactPage({
               borderRadius: "var(--radius)",
             }}
           >
+            {groupStreak > 0 && (
+              <div
+                className="mb-4 flex items-baseline gap-2"
+                style={{
+                  paddingBottom: 12,
+                  borderBottom: "1px dashed var(--line)",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 32,
+                    lineHeight: 1,
+                    color: "var(--accent)",
+                  }}
+                >
+                  {groupStreak}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 17,
+                    color: "var(--ink)",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {groupStreakUnit}{" "}
+                  <span style={{ color: "var(--ink-soft)" }}>group streak</span>
+                </span>
+              </div>
+            )}
             <div className="mb-3 flex items-baseline justify-between">
               <span className="label">this week · group</span>
               <span
@@ -506,6 +563,44 @@ export default async function PactPage({
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {challenge?.frequency === "weekly" && groupStreak > 0 && (
+        <section className="px-5 pt-6">
+          <div
+            className="p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            <div className="label mb-2">this pact</div>
+            <div className="flex items-baseline gap-2">
+              <span
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 32,
+                  lineHeight: 1,
+                  color: "var(--accent)",
+                }}
+              >
+                {groupStreak}
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 17,
+                  color: "var(--ink)",
+                  lineHeight: 1.2,
+                }}
+              >
+                {groupStreakUnit}{" "}
+                <span style={{ color: "var(--ink-soft)" }}>group streak</span>
+              </span>
             </div>
           </div>
         </section>

@@ -112,6 +112,74 @@ export function currentStreak(
   return streak;
 }
 
+// Consecutive periods where *every* expected member completed at least once.
+// Same skip-rest-days / don't-break-on-current-period semantics as
+// currentStreak, but evaluated for the whole group rather than one user.
+export function currentGroupStreak(
+  completions: { completed_at: string; user_id: string }[],
+  members: { user_id: string; joined_at: string }[],
+  frequency: Frequency,
+  daysOfWeek: number[] | null = null,
+  now: Date = new Date(),
+): number {
+  if (members.length === 0) return 0;
+  const stepMs = (frequency === "daily" ? 1 : 7) * 24 * 60 * 60 * 1000;
+
+  const dayIdxOf = (d: Date) => (d.getUTCDay() + 6) % 7;
+  const dayRequired = (d: Date) =>
+    frequency !== "daily" ||
+    daysOfWeek === null ||
+    daysOfWeek.length === 0 ||
+    daysOfWeek.includes(dayIdxOf(d));
+
+  // Bucket completions by period-start ISO string for O(1) lookups.
+  const usersByPeriod = new Map<string, Set<string>>();
+  for (const c of completions) {
+    const key = startOfPeriodUTC(frequency, new Date(c.completed_at))
+      .toISOString();
+    const s = usersByPeriod.get(key) ?? new Set<string>();
+    s.add(c.user_id);
+    usersByPeriod.set(key, s);
+  }
+
+  const memberJoinTimes = members.map((m) => ({
+    user_id: m.user_id,
+    joinedAt: new Date(m.joined_at).getTime(),
+  }));
+
+  const isPerfect = (periodStartDate: Date) => {
+    const periodEndMs = periodStartDate.getTime() + stepMs;
+    const expected = memberJoinTimes.filter((m) => m.joinedAt < periodEndMs);
+    if (expected.length === 0) return false;
+    const done = usersByPeriod.get(periodStartDate.toISOString()) ?? new Set();
+    return expected.every((m) => done.has(m.user_id));
+  };
+
+  let cursor = startOfPeriodUTC(frequency, now);
+
+  // Current period not perfect yet? Don't break the streak — back up.
+  if (dayRequired(cursor) && !isPerfect(cursor)) {
+    cursor = new Date(cursor.getTime() - stepMs);
+  }
+
+  const MAX = frequency === "daily" ? 365 : 52;
+  let streak = 0;
+  let steps = 0;
+  while (steps < MAX * 2) {
+    if (!dayRequired(cursor)) {
+      cursor = new Date(cursor.getTime() - stepMs);
+      steps++;
+      continue;
+    }
+    if (!isPerfect(cursor)) break;
+    streak++;
+    cursor = new Date(cursor.getTime() - stepMs);
+    steps++;
+    if (streak >= MAX) break;
+  }
+  return streak;
+}
+
 // Date in dd/mm/yy. Accepts an ISO string or a date-only string (YYYY-MM-DD).
 export function formatDate(iso: string | Date): string {
   const d = typeof iso === "string" ? new Date(iso) : iso;
