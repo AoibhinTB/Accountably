@@ -113,31 +113,43 @@ export default async function PactPage({
   const { error } = await searchParams;
   const supabase = await createClient();
 
-  const { data: pact } = await supabase
-    .from("groups")
-    .select(
-      "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week)",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  // Phase 1: pact + auth in parallel — neither depends on the other.
+  const [pactResult, userResult] = await Promise.all([
+    supabase
+      .from("groups")
+      .select(
+        "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week)",
+      )
+      .eq("id", id)
+      .maybeSingle(),
+    supabase.auth.getUser(),
+  ]);
 
+  const pact = pactResult.data;
   if (!pact) notFound();
+  const userData = userResult.data;
 
   const challenge: Challenge | null =
     (pact.challenges as Challenge[] | null)?.find((c) => !c.archived) ?? null;
 
-  const { data: userData } = await supabase.auth.getUser();
   const isCreator = userData.user?.id === pact.created_by;
 
-  const { data: members } = await supabase
+  const periodStart = challenge ? startOfPeriodUTC(challenge.frequency) : null;
+  const periodLabel = challenge?.frequency === "weekly" ? "this week" : "today";
+  const weekStart =
+    challenge?.frequency === "daily" ? startOfPeriodUTC("weekly") : null;
+
+  // Phase 2: members + the three completion queries all fan out in parallel.
+  // They each depend on pact/challenge but not on each other.
+  const membersPromise = supabase
     .from("group_members")
     .select("user_id, joined_at, profiles(display_name, avatar_url)")
     .eq("group_id", id)
     .order("joined_at", { ascending: true })
     .returns<Member[]>();
 
-  const { data: completions } = challenge
-    ? await supabase
+  const completionsPromise = challenge
+    ? supabase
         .from("completions")
         .select(
           "id, completed_at, note, user_id, profiles(display_name), reactions(emoji, user_id)",
@@ -146,33 +158,47 @@ export default async function PactPage({
         .order("completed_at", { ascending: false })
         .limit(30)
         .returns<CompletionRow[]>()
-    : { data: [] as CompletionRow[] };
+    : Promise.resolve({ data: [] as CompletionRow[] });
 
-  const periodStart = challenge ? startOfPeriodUTC(challenge.frequency) : null;
-  const periodLabel = challenge?.frequency === "weekly" ? "this week" : "today";
-
-  // Dedicated narrow queries for the per-member status and week-dots so they
-  // aren't capped by the 30-row limit on the completions feed query above.
-  const { data: periodCompletions } =
+  const periodCompletionsPromise =
     challenge && periodStart
-      ? await supabase
+      ? supabase
           .from("completions")
           .select("user_id, completed_at, note, id")
           .eq("challenge_id", challenge.id)
           .gte("completed_at", periodStart.toISOString())
           .order("completed_at", { ascending: false })
-      : { data: [] as { user_id: string; completed_at: string; note: string | null; id: string }[] };
+      : Promise.resolve({
+          data: [] as {
+            user_id: string;
+            completed_at: string;
+            note: string | null;
+            id: string;
+          }[],
+        });
 
-  const weekStart =
-    challenge?.frequency === "daily" ? startOfPeriodUTC("weekly") : null;
-  const { data: weekCompletions } =
+  const weekCompletionsPromise =
     challenge && weekStart
-      ? await supabase
+      ? supabase
           .from("completions")
           .select("completed_at, user_id")
           .eq("challenge_id", challenge.id)
           .gte("completed_at", weekStart.toISOString())
-      : { data: [] as { completed_at: string; user_id: string }[] };
+      : Promise.resolve({
+          data: [] as { completed_at: string; user_id: string }[],
+        });
+
+  const [
+    { data: members },
+    { data: completions },
+    { data: periodCompletions },
+    { data: weekCompletions },
+  ] = await Promise.all([
+    membersPromise,
+    completionsPromise,
+    periodCompletionsPromise,
+    weekCompletionsPromise,
+  ]);
 
   // My current-period completion is the most recent one I've logged within
   // the period. The "add a note" disclosure binds to its id.

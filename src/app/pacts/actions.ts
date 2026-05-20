@@ -231,10 +231,15 @@ export async function toggleQuickLogForm(pactId: string): Promise<void> {
 
 // Tap-to-log AND tap-to-undo from the Feed today-band. If the user already
 // has a completion in the current period (today for daily, this week for
-// weekly), delete the most recent one; otherwise insert a fresh completion.
+// weekly), delete the most recent one; otherwise insert a fresh completion
+// and return its id so the UI can offer to attach a note.
 export async function toggleQuickLog(
   pactId: string,
-): Promise<{ ok: true; done: boolean } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; done: true; completionId: string }
+  | { ok: true; done: false }
+  | { ok: false; error: string }
+> {
   if (!pactId) return { ok: false, error: "Missing pact" };
 
   const supabase = await createClient();
@@ -281,12 +286,40 @@ export async function toggleQuickLog(
     return { ok: true, done: false };
   }
 
-  const { error: insErr } = await supabase
+  const { data: inserted, error: insErr } = await supabase
     .from("completions")
-    .insert({ challenge_id: challenge.id });
-  if (insErr) return { ok: false, error: insErr.message };
+    .insert({ challenge_id: challenge.id })
+    .select("id")
+    .single();
+  if (insErr || !inserted) {
+    return { ok: false, error: insErr?.message ?? "Insert failed" };
+  }
 
   revalidatePath("/feed");
   revalidatePath(`/pacts/${pactId}`);
-  return { ok: true, done: true };
+  return { ok: true, done: true, completionId: inserted.id };
+}
+
+// Client-callable variant of saveCompletionNote — no redirect, used by the
+// Feed today-band's post-log note sheet so the user stays on /feed.
+export async function saveNoteInline(
+  completionId: string,
+  note: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!completionId) return { ok: false, error: "Missing completion" };
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("completions")
+    .update({ note: note ?? null })
+    .eq("id", completionId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "Not authorized" };
+
+  revalidatePath("/feed");
+  return { ok: true };
 }

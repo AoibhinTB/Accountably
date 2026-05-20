@@ -75,9 +75,11 @@ export default async function PactsPage({
     .order("joined_at", { ascending: false })
     .returns<Membership[]>();
 
-  const myPactIds = (memberships ?? [])
-    .flatMap((m) => (m.groups ? [m.groups.id] : []));
+  const myPactIds = (memberships ?? []).flatMap((m) =>
+    m.groups ? [m.groups.id] : [],
+  );
 
+  // Members across my pacts (for the avatar previews on each card).
   const { data: allMembers } = myPactIds.length
     ? await supabase
         .from("group_members")

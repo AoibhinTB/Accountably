@@ -31,24 +31,27 @@ export default async function YouPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/you");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name, created_at")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Phase 1: profile + pact rows in parallel (both depend only on user id).
+  const [{ data: profile }, { data: pactRows }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("display_name, created_at")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("group_members")
+      .select(
+        "groups(id, name, icon, challenges(id, frequency, archived, days_of_week))",
+      )
+      .eq("user_id", user.id)
+      .returns<PactRow[]>(),
+  ]);
 
   const joined = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString(undefined, {
         month: "long",
       })
     : null;
-
-  // Pacts I'm a member of, with their active challenge.
-  const { data: pactRows } = await supabase
-    .from("group_members")
-    .select("groups(id, name, icon, challenges(id, frequency, archived, days_of_week))")
-    .eq("user_id", user.id)
-    .returns<PactRow[]>();
 
   const pacts = (pactRows ?? [])
     .flatMap((r) => (r.groups ? [r.groups] : []))
@@ -68,14 +71,28 @@ export default async function YouPage() {
   const lookback = new Date();
   lookback.setUTCDate(lookback.getUTCDate() - 400);
 
-  const { data: myCompletions } = activeChallengeIds.length
-    ? await supabase
-        .from("completions")
-        .select("challenge_id, completed_at")
-        .eq("user_id", user.id)
-        .in("challenge_id", activeChallengeIds)
-        .gte("completed_at", lookback.toISOString())
-    : { data: [] as { challenge_id: string; completed_at: string }[] };
+  // Phase 2: my completions for streak compute + this-month count, parallel.
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const [{ data: myCompletions }, { count: monthCount }] = await Promise.all([
+    activeChallengeIds.length
+      ? supabase
+          .from("completions")
+          .select("challenge_id, completed_at")
+          .eq("user_id", user.id)
+          .in("challenge_id", activeChallengeIds)
+          .gte("completed_at", lookback.toISOString())
+      : Promise.resolve({
+          data: [] as { challenge_id: string; completed_at: string }[],
+        }),
+    supabase
+      .from("completions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("completed_at", monthStart.toISOString()),
+  ]);
 
   const completionsByChallenge = new Map<string, string[]>();
   for (const c of myCompletions ?? []) {
@@ -103,17 +120,6 @@ export default async function YouPage() {
   const topStreakFreq =
     pactsWithStreak.find((p) => p.streak === topStreak)?.challenge.frequency ??
     "daily";
-
-  // This-month completion count for the current user.
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-
-  const { count: monthCount } = await supabase
-    .from("completions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .gte("completed_at", monthStart.toISOString());
 
   const stats = [
     { label: "pacts", value: pactsWithStreak.length },

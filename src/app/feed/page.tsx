@@ -65,22 +65,23 @@ export default async function FeedPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/feed");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Phase 1: profile + my pacts in parallel — both only need the user id.
+  const [{ data: profile }, { data: pactRows }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("group_members")
+      .select(
+        "groups(id, name, icon, created_at, challenges(id, frequency, archived, days_of_week))",
+      )
+      .eq("user_id", user.id)
+      .returns<(PactRow & { groups: { created_at: string } | null })[]>(),
+  ]);
 
   const firstName = (profile?.display_name ?? "").split(" ")[0] || "friend";
-
-  // 1. My pacts (groups I'm a member of) with their active challenges.
-  const { data: pactRows } = await supabase
-    .from("group_members")
-    .select(
-      "groups(id, name, icon, created_at, challenges(id, frequency, archived, days_of_week))",
-    )
-    .eq("user_id", user.id)
-    .returns<(PactRow & { groups: { created_at: string } | null })[]>();
 
   const myPacts = (pactRows ?? [])
     .map((r) => r.groups)
@@ -104,14 +105,32 @@ export default async function FeedPage() {
   const challengeToPact = new Map(myPacts.map((p) => [p.challenge.id, p]));
   const pactById = new Map(myPacts.map((p) => [p.id, p]));
 
-  // 2. All members across my pacts (with joined_at + display name).
-  const { data: allMembers } = myPactIds.length
-    ? await supabase
-        .from("group_members")
-        .select("group_id, user_id, joined_at, profiles(display_name)")
-        .in("group_id", myPactIds)
-        .returns<MemberRow[]>()
-    : { data: [] as MemberRow[] };
+  // Phase 2: members + completions for my pacts, in parallel. Both depend on
+  // myPactIds / challengeIds but not on each other.
+  const now = new Date();
+  const lookback30 = new Date(now);
+  lookback30.setUTCDate(lookback30.getUTCDate() - 30);
+
+  const [{ data: allMembers }, { data: allCompletions }] = await Promise.all([
+    myPactIds.length
+      ? supabase
+          .from("group_members")
+          .select("group_id, user_id, joined_at, profiles(display_name)")
+          .in("group_id", myPactIds)
+          .returns<MemberRow[]>()
+      : Promise.resolve({ data: [] as MemberRow[] }),
+    challengeIds.length
+      ? supabase
+          .from("completions")
+          .select(
+            "id, challenge_id, user_id, completed_at, note, profiles(display_name)",
+          )
+          .in("challenge_id", challengeIds)
+          .gte("completed_at", lookback30.toISOString())
+          .order("completed_at", { ascending: false })
+          .returns<CompletionRow[]>()
+      : Promise.resolve({ data: [] as CompletionRow[] }),
+  ]);
 
   const membersByGroup = new Map<string, MemberRow[]>();
   for (const m of allMembers ?? []) {
@@ -119,24 +138,6 @@ export default async function FeedPage() {
     list.push(m);
     membersByGroup.set(m.group_id, list);
   }
-
-  // 3. All completions in my pacts in the last 30 days. Powers today's notes,
-  // this-week stats, and streak detection.
-  const now = new Date();
-  const lookback30 = new Date(now);
-  lookback30.setUTCDate(lookback30.getUTCDate() - 30);
-
-  const { data: allCompletions } = challengeIds.length
-    ? await supabase
-        .from("completions")
-        .select(
-          "id, challenge_id, user_id, completed_at, note, profiles(display_name)",
-        )
-        .in("challenge_id", challengeIds)
-        .gte("completed_at", lookback30.toISOString())
-        .order("completed_at", { ascending: false })
-        .returns<CompletionRow[]>()
-    : { data: [] as CompletionRow[] };
 
   const completions = allCompletions ?? [];
 
@@ -347,16 +348,18 @@ export default async function FeedPage() {
         <div className="label mb-2">today&apos;s notes</div>
         {todaysNotes.length === 0 ? (
           <div
-            className="px-5 py-5 text-sm"
+            className="px-5 py-5 text-center"
             style={{
               borderRadius: "var(--radius)",
               border: "1.5px dashed var(--line-strong)",
               color: "var(--ink-soft)",
-              lineHeight: 1.4,
+              fontFamily: "var(--font-display)",
+              fontStyle: "italic",
+              fontSize: 17,
+              lineHeight: 1.3,
             }}
           >
-            no notes today yet. tap your circle above to log, then leave a
-            note for the group.
+            no notes from today
           </div>
         ) : (
           <ul className="flex flex-col gap-2.5">
