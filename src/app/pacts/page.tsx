@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
+import { Chevron } from "@/components/ui/chevron";
 import { Squiggle } from "@/components/ui/squiggle";
 import { formatDate } from "@/lib/period";
 import { joinPactByCode } from "./actions";
@@ -201,7 +202,12 @@ export default async function PactsPage({
                   </div>
                 )}
               </div>
-              <span style={{ color: "var(--mute)" }} aria-hidden>→</span>
+              <Chevron
+                direction="right"
+                size={16}
+                strokeWidth={1.8}
+                style={{ color: "var(--mute)", flexShrink: 0 }}
+              />
             </Link>
           ))}
         </section>
@@ -237,9 +243,7 @@ export default async function PactsPage({
             boxShadow: "0 4px 14px rgba(216, 98, 58, 0.25)",
           }}
         >
-          <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>
-            +
-          </span>
+          <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>+</span>
           <span>start a pact</span>
         </Link>
 
@@ -257,13 +261,13 @@ export default async function PactsPage({
             }}
           >
             <span>join with code</span>
-            <span
+            <Chevron
+              direction="down"
+              size={14}
+              strokeWidth={2}
               className="transition-transform group-open:rotate-180"
               style={{ color: "var(--mute)" }}
-              aria-hidden
-            >
-              ▾
-            </span>
+            />
           </summary>
           <form
             action={joinPactByCode}

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Chevron } from "@/components/ui/chevron";
 import { Squiggle } from "@/components/ui/squiggle";
 
 export default async function Home() {
@@ -36,7 +37,7 @@ export default async function Home() {
       </div>
       <a
         href="/login"
-        className="press inline-flex items-center justify-center"
+        className="press inline-flex items-center justify-center gap-2"
         style={{
           minHeight: 56,
           padding: "0 28px",
@@ -48,7 +49,8 @@ export default async function Home() {
           fontSize: 17,
         }}
       >
-        get started →
+        <span>get started</span>
+        <Chevron direction="right" size={18} strokeWidth={2.2} />
       </a>
     </main>
   );

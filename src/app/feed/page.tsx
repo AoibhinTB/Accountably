@@ -111,7 +111,20 @@ export default async function FeedPage() {
   const lookback30 = new Date(now);
   lookback30.setUTCDate(lookback30.getUTCDate() - 30);
 
-  const [{ data: allMembers }, { data: allCompletions }] = await Promise.all([
+  type NudgeRow = { challenge_id: string };
+
+  // Nudges I've received that are still in their period (i.e. for any pact
+  // where I'm a member and the period_start key matches today's daily or
+  // this-week's start). We just check >= today and >= weekStart respectively,
+  // so a single >= today-2-weeks lookback covers both.
+  const twoWeeksAgo = new Date(now);
+  twoWeeksAgo.setUTCDate(twoWeeksAgo.getUTCDate() - 14);
+
+  const [
+    { data: allMembers },
+    { data: allCompletions },
+    { data: myNudges },
+  ] = await Promise.all([
     myPactIds.length
       ? supabase
           .from("group_members")
@@ -130,7 +143,20 @@ export default async function FeedPage() {
           .order("completed_at", { ascending: false })
           .returns<CompletionRow[]>()
       : Promise.resolve({ data: [] as CompletionRow[] }),
+    challengeIds.length
+      ? supabase
+          .from("nudges")
+          .select("challenge_id")
+          .eq("to_user_id", user.id)
+          .in("challenge_id", challengeIds)
+          .gte("period_start", twoWeeksAgo.toISOString().slice(0, 10))
+          .returns<NudgeRow[]>()
+      : Promise.resolve({ data: [] as NudgeRow[] }),
   ]);
+
+  const nudgedChallengeIds = new Set(
+    (myNudges ?? []).map((n) => n.challenge_id),
+  );
 
   const membersByGroup = new Map<string, MemberRow[]>();
   for (const m of allMembers ?? []) {
@@ -176,6 +202,7 @@ export default async function FeedPage() {
         icon: p.icon,
         frequency: p.challenge.frequency,
         doneThisPeriod: done,
+        nudged: !done && nudgedChallengeIds.has(p.challenge.id),
       };
     });
 

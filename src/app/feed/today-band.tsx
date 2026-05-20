@@ -10,6 +10,7 @@ export type TodayPact = {
   icon: string | null;
   frequency: "daily" | "weekly";
   doneThisPeriod: boolean;
+  nudged: boolean;
 };
 
 type NotePrompt = {
@@ -82,7 +83,11 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
                 className="press flex flex-col items-center gap-1.5"
                 style={{ width: 96, touchAction: "pan-x" }}
               >
-                <CompletionDisk done={p.doneThisPeriod} icon={p.icon} />
+                <CompletionDisk
+                  done={p.doneThisPeriod}
+                  icon={p.icon}
+                  nudged={p.nudged}
+                />
                 <div
                   className="w-full truncate text-center"
                   style={{
@@ -343,9 +348,11 @@ function NoteSheet({
 function CompletionDisk({
   done,
   icon,
+  nudged,
 }: {
   done: boolean;
   icon: string | null;
+  nudged: boolean;
 }) {
   return (
     <div
@@ -394,6 +401,30 @@ function CompletionDisk({
         >
           <circle cx="12" cy="12" r="8.5" strokeDasharray="2 4" />
         </svg>
+      )}
+      {nudged && !done && (
+        <span
+          aria-label="You've been nudged"
+          style={{
+            position: "absolute",
+            top: -2,
+            right: -2,
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            background: "var(--accent)",
+            border: "2px solid var(--bg)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          !
+        </span>
       )}
     </div>
   );

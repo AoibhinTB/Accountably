@@ -14,6 +14,7 @@ import {
 } from "@/components/reactions/constants";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
+import { Chevron } from "@/components/ui/chevron";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { Squiggle } from "@/components/ui/squiggle";
@@ -26,6 +27,7 @@ import {
   type WeekDay,
 } from "@/lib/period";
 import { IconEditTrigger } from "./icon-edit-trigger";
+import { NudgeButton } from "./nudge-button";
 import {
   deletePact,
   saveCompletionNote,
@@ -183,14 +185,38 @@ export default async function PactPage({
         .returns<LightCompletion[]>()
     : Promise.resolve({ data: [] as LightCompletion[] });
 
+  const periodStartKey = periodStart
+    ? periodStart.toISOString().slice(0, 10)
+    : null;
+
+  type NudgeRow = {
+    from_user_id: string;
+    to_user_id: string;
+    profiles: { display_name: string } | null;
+  };
+
+  const nudgesPromise =
+    challenge && periodStartKey
+      ? supabase
+          .from("nudges")
+          .select(
+            "from_user_id, to_user_id, profiles!nudges_from_user_id_fkey(display_name)",
+          )
+          .eq("challenge_id", challenge.id)
+          .eq("period_start", periodStartKey)
+          .returns<NudgeRow[]>()
+      : Promise.resolve({ data: [] as NudgeRow[] });
+
   const [
     { data: members },
     { data: completions },
     { data: recentCompletions },
+    { data: nudges },
   ] = await Promise.all([
     membersPromise,
     completionsPromise,
     recentCompletionsPromise,
+    nudgesPromise,
   ]);
 
   // Derive period + week subsets from the 60-day data.
@@ -220,6 +246,17 @@ export default async function PactPage({
     return { member: m, completion };
   });
   const periodDoneCount = memberStatus.filter((s) => s.completion).length;
+
+  // Who have I nudged this period? Who has nudged me?
+  const currentUserId = userData.user?.id ?? null;
+  const nudgesSentByMe = new Set<string>();
+  const nudgersOfMe: string[] = [];
+  for (const n of nudges ?? []) {
+    if (n.from_user_id === currentUserId) nudgesSentByMe.add(n.to_user_id);
+    if (n.to_user_id === currentUserId) {
+      nudgersOfMe.push(n.profiles?.display_name ?? "Someone");
+    }
+  }
 
   // Streak dots — only meaningful for daily pacts. One state per day of the
   // current week: "done" (all required members hit it), "pending" (required
@@ -298,10 +335,11 @@ export default async function PactPage({
       <div className="px-5">
         <Link
           href="/pacts"
-          className="press inline-flex min-h-10 items-center text-sm"
+          className="press inline-flex min-h-10 items-center gap-1.5 text-sm"
           style={{ color: "var(--ink-soft)" }}
         >
-          ← your pacts
+          <Chevron direction="left" size={14} strokeWidth={2} />
+          <span>your pacts</span>
         </Link>
       </div>
 
@@ -654,9 +692,22 @@ export default async function PactPage({
                       <div className="label mt-0.5">
                         {completion
                           ? `checked in · ${timeAgo(completion.completed_at)}`
-                          : "still pending"}
+                          : isYou && nudgersOfMe.length > 0
+                            ? `nudged by ${nudgersOfMe[0]}${
+                                nudgersOfMe.length > 1
+                                  ? ` +${nudgersOfMe.length - 1}`
+                                  : ""
+                              }`
+                            : "still pending"}
                       </div>
                     </div>
+                    {!completion && !isYou && (
+                      <NudgeButton
+                        pactId={pact.id}
+                        toUserId={m.user_id}
+                        alreadyNudged={nudgesSentByMe.has(m.user_id)}
+                      />
+                    )}
                     {completion ? (
                       <svg
                         width="22"
@@ -815,13 +866,13 @@ export default async function PactPage({
                           {noteCount > 0 ? ` · ${noteCount} note${noteCount === 1 ? "" : "s"}` : ""}
                         </span>
                       </span>
-                      <span
-                        aria-hidden
+                      <Chevron
+                        direction="down"
+                        size={14}
+                        strokeWidth={2}
                         className="transition-transform group-open:rotate-180"
                         style={{ color: "var(--mute)" }}
-                      >
-                        ▾
-                      </span>
+                      />
                     </summary>
                     <ul className="mt-2 flex flex-col gap-2">
                       {day.items.map((item) => (
@@ -875,13 +926,13 @@ export default async function PactPage({
                 {members && members.length > 0 ? ` · ${members.length}` : ""}
               </span>
             </span>
-            <span
-              aria-hidden
+            <Chevron
+              direction="down"
+              size={14}
+              strokeWidth={2}
               className="transition-transform group-open:rotate-180"
               style={{ color: "var(--mute)" }}
-            >
-              ▾
-            </span>
+            />
           </summary>
           <div
             className="mt-3 p-4"
@@ -960,13 +1011,13 @@ export default async function PactPage({
               }}
             >
               <span>edit pact</span>
-              <span
-                aria-hidden
+              <Chevron
+                direction="down"
+                size={14}
+                strokeWidth={2}
                 className="transition-transform group-open:rotate-180"
                 style={{ color: "var(--mute)" }}
-              >
-                ▾
-              </span>
+              />
             </summary>
             <div
               className="mt-3 p-4"
@@ -1029,13 +1080,13 @@ export default async function PactPage({
                     }}
                   >
                     <span>custom dates</span>
-                    <span
-                      aria-hidden
+                    <Chevron
+                      direction="down"
+                      size={14}
+                      strokeWidth={2}
                       className="transition-transform group-open:rotate-180"
                       style={{ color: "var(--mute)" }}
-                    >
-                      ▾
-                    </span>
+                    />
                   </summary>
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <label className="block">

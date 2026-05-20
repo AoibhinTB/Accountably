@@ -300,6 +300,77 @@ export async function toggleQuickLog(
   return { ok: true, done: true, completionId: inserted.id };
 }
 
+// Toggle a nudge to a member for the current period. If an existing nudge
+// (this sender → that recipient → this challenge → this period) exists, it
+// is deleted (un-nudge). Otherwise inserted. The recipient sees the badge
+// in the app until period end or until the sender retracts.
+export async function toggleNudge(
+  pactId: string,
+  toUserId: string,
+): Promise<
+  | { ok: true; nudged: boolean }
+  | { ok: false; error: string }
+> {
+  if (!pactId || !toUserId) return { ok: false, error: "Missing args" };
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not authenticated" };
+
+  const { data: challenge, error: chErr } = await supabase
+    .from("challenges")
+    .select("id, frequency")
+    .eq("group_id", pactId)
+    .eq("archived", false)
+    .maybeSingle();
+
+  if (chErr) return { ok: false, error: chErr.message };
+  if (!challenge) return { ok: false, error: "No active challenge" };
+  if (challenge.frequency !== "daily" && challenge.frequency !== "weekly") {
+    return { ok: false, error: "Unsupported frequency" };
+  }
+
+  const periodStartKey = startOfPeriodUTC(challenge.frequency)
+    .toISOString()
+    .slice(0, 10);
+
+  // Delete-if-exists; on no rows deleted, insert. Single round-trip would
+  // be nice (UPSERT with negative), but two simple queries keep things clear.
+  const { data: deleted } = await supabase
+    .from("nudges")
+    .delete()
+    .eq("from_user_id", user.id)
+    .eq("to_user_id", toUserId)
+    .eq("challenge_id", challenge.id)
+    .eq("period_start", periodStartKey)
+    .select("id")
+    .maybeSingle();
+
+  if (deleted) {
+    revalidatePath(`/pacts/${pactId}`);
+    revalidatePath("/feed");
+    return { ok: true, nudged: false };
+  }
+
+  const { error } = await supabase.from("nudges").insert({
+    to_user_id: toUserId,
+    challenge_id: challenge.id,
+    period_start: periodStartKey,
+  });
+
+  // 23505 = unique_violation — race with another insert. Treat as success.
+  if (error && error.code !== "23505") {
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`/pacts/${pactId}`);
+  revalidatePath("/feed");
+  return { ok: true, nudged: true };
+}
+
 // Client-callable variant of saveCompletionNote — no redirect, used by the
 // Feed today-band's post-log note sheet so the user stays on /feed.
 export async function saveNoteInline(

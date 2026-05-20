@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
+import { Chevron } from "@/components/ui/chevron";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { Squiggle } from "@/components/ui/squiggle";
@@ -36,19 +37,7 @@ export default async function NewPactPage({
             color: "var(--ink)",
           }}
         >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <path d="M15 5l-7 7 7 7" />
-          </svg>
+          <Chevron direction="left" size={18} strokeWidth={2} />
         </Link>
       </div>
 
@@ -129,13 +118,13 @@ export default async function NewPactPage({
             }}
           >
             <span>add custom dates (optional)</span>
-            <span
-              aria-hidden
+            <Chevron
+              direction="down"
+              size={14}
+              strokeWidth={2}
               className="transition-transform group-open:rotate-180"
               style={{ color: "var(--mute)" }}
-            >
-              ▾
-            </span>
+            />
           </summary>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <label className="block">
