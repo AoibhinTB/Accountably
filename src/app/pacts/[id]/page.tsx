@@ -8,7 +8,6 @@ import { Avatar } from "@/components/ui/avatar";
 import { Chevron } from "@/components/ui/chevron";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
-import { Squiggle } from "@/components/ui/squiggle";
 import {
   currentGroupStreak,
   formatDate,
@@ -241,79 +240,79 @@ export default async function PactPage({
       </div>
 
       <section
-        className="mx-5 mt-3 px-6 pt-8 pb-7 text-center"
+        className="mx-5 mt-3 p-4 flex items-start gap-3"
         style={{
           background: "var(--accent2-soft)",
-          borderRadius: "var(--radius-lg)",
+          borderRadius: "var(--radius)",
           position: "relative",
         }}
       >
-        <div className="mb-3 flex justify-center">
-          <IconEditTrigger targetId="edit-pact" ariaLabel="Change pact icon">
-            <div
-              className="-rotate-2"
-              style={{
-                width: 78,
-                height: 78,
-                borderRadius: 22,
-                background: "var(--card)",
-                color: "var(--accent)",
-                fontFamily: pact.icon ? "inherit" : "var(--font-display)",
-                fontSize: pact.icon ? 44 : 42,
-                boxShadow: "0 4px 0 rgba(42,31,24,0.08)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              aria-hidden
-            >
-              {pact.icon ?? stickerForName(pact.name)}
-            </div>
-          </IconEditTrigger>
-        </div>
-        <h1 className="h-display m-0" style={{ fontSize: 32 }}>
-          {pact.name}
-        </h1>
-        <Squiggle width={84} className="mx-auto" />
-        {challenge && (
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <span className="pill">
-              {cadenceLabel(challenge.frequency, challenge.days_of_week)}
-            </span>
-            <span className="label">
-              since {formatDate(challenge.start_date)}
-              {challenge.end_date && ` · until ${formatDate(challenge.end_date)}`}
-            </span>
-          </div>
-        )}
-        {challenge?.description && (
-          <p
-            className="note mx-auto mt-4"
+        <IconEditTrigger targetId="edit-pact" ariaLabel="Change pact icon">
+          <div
+            className="-rotate-2"
             style={{
-              maxWidth: 360,
-              paddingLeft: 12,
-              borderLeft: "2px solid var(--accent)",
-              textAlign: "left",
-              fontSize: 16,
+              width: 52,
+              height: 52,
+              borderRadius: 14,
+              background: "var(--card)",
+              color: "var(--accent)",
+              fontFamily: pact.icon ? "inherit" : "var(--font-display)",
+              fontSize: pact.icon ? 28 : 26,
+              boxShadow: "0 2px 0 rgba(42,31,24,0.08)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
             }}
+            aria-hidden
           >
-            &ldquo;{challenge.description}&rdquo;
-          </p>
-        )}
-        <div className="mt-4 flex items-center justify-center gap-2.5">
-          {members && members.length > 0 && (
-            <div className="avastack">
-              {members.slice(0, 5).map((m) => (
-                <Avatar
-                  key={m.user_id}
-                  name={m.profiles?.display_name ?? "?"}
-                  size={28}
-                />
-              ))}
+            {pact.icon ?? stickerForName(pact.name)}
+          </div>
+        </IconEditTrigger>
+        <div className="min-w-0 flex-1">
+          <h1
+            className="h-display m-0"
+            style={{ fontSize: 22, lineHeight: 1.1 }}
+          >
+            {pact.name}
+          </h1>
+          {challenge && (
+            <div className="label mt-1">
+              {cadenceLabel(challenge.frequency, challenge.days_of_week)}
+              {" · since "}
+              {formatDate(challenge.start_date)}
+              {challenge.end_date && ` · until ${formatDate(challenge.end_date)}`}
             </div>
           )}
-          {members && members.length > 5 && (
-            <span className="label">+{members.length - 5}</span>
+          {members && members.length > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <div className="avastack">
+                {members.slice(0, 4).map((m) => (
+                  <Avatar
+                    key={m.user_id}
+                    name={m.profiles?.display_name ?? "?"}
+                    size={22}
+                  />
+                ))}
+              </div>
+              <span className="label">
+                {members.length} friend{members.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          )}
+          {challenge?.description && (
+            <p
+              className="note mt-2"
+              style={{
+                paddingLeft: 10,
+                borderLeft: "2px solid var(--accent)",
+                textAlign: "left",
+                fontSize: 14,
+                lineHeight: 1.35,
+              }}
+            >
+              &ldquo;{challenge.description}&rdquo;
+            </p>
           )}
         </div>
       </section>
