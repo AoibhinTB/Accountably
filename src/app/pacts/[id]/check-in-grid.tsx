@@ -17,9 +17,11 @@ type Completion = {
   completed_at: string;
 };
 
-type CellState = "done" | "pending" | "rest" | "blank";
+type CellState = "done" | "pending" | "rest" | "prePact" | "preJoin";
 
 const DAY_MS = 86_400_000;
+const MIN_DAILY_COLS = 14;
+const MIN_WEEKLY_COLS = 8;
 
 function startOfPeriod(date: Date, frequency: Frequency): Date {
   const d = new Date(date);
@@ -36,24 +38,31 @@ function periodKeyOf(date: Date, frequency: Frequency): string {
   return startOfPeriod(date, frequency).toISOString().slice(0, 10);
 }
 
-// Generate columns from the pact's start period up to today's period.
+// Today first, going right = older. Always at least minCount columns; if the
+// pact is younger than that, pad with pre-pact-start columns to keep the row
+// looking complete.
 function generateColumns(
   startDate: Date,
   now: Date,
   frequency: Frequency,
-): string[] {
+  minCount: number,
+): { key: string; isPrePact: boolean }[] {
   const stepMs = (frequency === "daily" ? 1 : 7) * DAY_MS;
-  const firstStart = startOfPeriod(startDate, frequency);
-  const lastStart = startOfPeriod(now, frequency);
-  const cols: string[] = [];
-  let cursor = new Date(firstStart);
-  // Safety cap so a stale start_date can't lock the page up.
-  const MAX = frequency === "daily" ? 365 * 3 : 52 * 5;
-  let n = 0;
-  while (cursor.getTime() <= lastStart.getTime() && n < MAX) {
-    cols.push(cursor.toISOString().slice(0, 10));
-    cursor = new Date(cursor.getTime() + stepMs);
-    n++;
+  const todayPeriod = startOfPeriod(now, frequency);
+  const startPeriod = startOfPeriod(startDate, frequency);
+
+  // How many active pact columns (today back to pact-start inclusive)?
+  const activeCount = Math.max(
+    1,
+    Math.round((todayPeriod.getTime() - startPeriod.getTime()) / stepMs) + 1,
+  );
+  const total = Math.max(minCount, activeCount);
+
+  const cols: { key: string; isPrePact: boolean }[] = [];
+  for (let i = 0; i < total; i++) {
+    const cursorMs = todayPeriod.getTime() - i * stepMs;
+    const key = new Date(cursorMs).toISOString().slice(0, 10);
+    cols.push({ key, isPrePact: cursorMs < startPeriod.getTime() });
   }
   return cols;
 }
@@ -94,7 +103,9 @@ export function CheckInGrid({
 }) {
   const now = new Date();
   const startDate = new Date(`${challenge.start_date}T00:00:00Z`);
-  const columns = generateColumns(startDate, now, challenge.frequency);
+  const minCount =
+    challenge.frequency === "daily" ? MIN_DAILY_COLS : MIN_WEEKLY_COLS;
+  const columns = generateColumns(startDate, now, challenge.frequency, minCount);
   const todayKey = periodKeyOf(now, challenge.frequency);
   const stepMs = (challenge.frequency === "daily" ? 1 : 7) * DAY_MS;
 
@@ -129,32 +140,32 @@ export function CheckInGrid({
     joinedAt: new Date(m.joined_at).getTime(),
   }));
 
-  // A column is "perfect" if every member who was in the pact by the end of
-  // that period has checked in for it. Includes my optimistic dates.
   const perfectColumns = new Set<string>();
-  for (const key of columns) {
-    if (!isRequired(key)) continue;
-    const colEndMs = new Date(`${key}T00:00:00Z`).getTime() + stepMs;
+  for (const col of columns) {
+    if (col.isPrePact) continue;
+    if (!isRequired(col.key)) continue;
+    const colEndMs = new Date(`${col.key}T00:00:00Z`).getTime() + stepMs;
     const expected = memberJoinTimes.filter((m) => m.joinedAt < colEndMs);
     if (expected.length === 0) continue;
-    const doneSet = new Set(doneByPeriodUser.get(key) ?? []);
-    if (currentUserId && optimisticMyDates.has(key)) doneSet.add(currentUserId);
+    const doneSet = new Set(doneByPeriodUser.get(col.key) ?? []);
+    if (currentUserId && optimisticMyDates.has(col.key)) doneSet.add(currentUserId);
     if (expected.every((m) => doneSet.has(m.user_id))) {
-      perfectColumns.add(key);
+      perfectColumns.add(col.key);
     }
   }
 
-  const computeCell = (member: Member, colKey: string): CellState => {
-    const colEndMs = new Date(`${colKey}T00:00:00Z`).getTime() + stepMs;
+  const computeCell = (
+    member: Member,
+    col: { key: string; isPrePact: boolean },
+  ): CellState => {
+    if (col.isPrePact) return "prePact";
+    const colEndMs = new Date(`${col.key}T00:00:00Z`).getTime() + stepMs;
     const memberJoinedMs = new Date(member.joined_at).getTime();
-    if (colEndMs <= memberJoinedMs) return "blank";
-    if (!isRequired(colKey)) return "rest";
-    const set = doneByPeriodUser.get(colKey);
+    if (colEndMs <= memberJoinedMs) return "preJoin";
+    if (!isRequired(col.key)) return "rest";
+    const set = doneByPeriodUser.get(col.key);
     if (set?.has(member.user_id)) return "done";
-    if (
-      member.user_id === currentUserId &&
-      optimisticMyDates.has(colKey)
-    ) {
+    if (member.user_id === currentUserId && optimisticMyDates.has(col.key)) {
       return "done";
     }
     return "pending";
@@ -171,18 +182,20 @@ export function CheckInGrid({
     });
   };
 
-  // Scroll to the right edge (today) on mount.
+  // Scroll to the LEFT edge (today) on mount, and re-snap after a backdate.
   const scrollerRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = scrollerRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
+    if (el) el.scrollLeft = 0;
   }, []);
-
-  // After data refreshes (e.g. after backdate), re-snap to the right.
   useEffect(() => {
     const el = scrollerRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
+    if (el) el.scrollLeft = 0;
   }, [completions.length]);
+
+  // Find the boundary: index of the FIRST pre-pact column. The line goes on
+  // that column's left edge (separating active pact days from padding).
+  const firstPrePactIndex = columns.findIndex((c) => c.isPrePact);
 
   const NAME_COL_W = 84;
   const CELL_W = 38;
@@ -221,16 +234,17 @@ export function CheckInGrid({
               zIndex: 1,
             }}
           />
-          {columns.map((key) => {
-            const isToday = key === todayKey;
-            const isPerfect = perfectColumns.has(key);
+          {columns.map((col, idx) => {
+            const isToday = col.key === todayKey;
+            const isPerfect = perfectColumns.has(col.key);
+            const showStartLine = idx === firstPrePactIndex;
             const labels =
-              challenge.frequency === "daily" ? dailyColLabels(key) : null;
+              challenge.frequency === "daily" ? dailyColLabels(col.key) : null;
             const weeklyLabels =
-              challenge.frequency === "weekly" ? weeklyColLabels(key) : null;
+              challenge.frequency === "weekly" ? weeklyColLabels(col.key) : null;
             return (
               <div
-                key={key}
+                key={col.key}
                 style={{
                   width: CELL_W,
                   flexShrink: 0,
@@ -240,16 +254,25 @@ export function CheckInGrid({
                   justifyContent: "flex-end",
                   paddingBottom: 6,
                   fontFamily: "var(--font-stat-mono)",
-                  background: isPerfect
-                    ? "var(--perfect-soft)"
-                    : isToday
-                      ? "var(--accent-soft)"
-                      : "transparent",
-                  color: isPerfect
-                    ? "var(--perfect)"
-                    : isToday
-                      ? "var(--accent)"
-                      : "var(--mute)",
+                  background: col.isPrePact
+                    ? "transparent"
+                    : isPerfect
+                      ? "var(--perfect-soft)"
+                      : isToday
+                        ? "var(--accent-soft)"
+                        : "transparent",
+                  color: col.isPrePact
+                    ? "var(--mute)"
+                    : isPerfect
+                      ? "var(--perfect)"
+                      : isToday
+                        ? "var(--accent)"
+                        : "var(--mute)",
+                  opacity: col.isPrePact ? 0.5 : 1,
+                  borderLeft: showStartLine
+                    ? "2px solid var(--ink-soft)"
+                    : "none",
+                  position: "relative",
                 }}
               >
                 {labels && (
@@ -329,14 +352,15 @@ export function CheckInGrid({
                   )}
                 </span>
               </div>
-              {columns.map((key) => {
-                const state = computeCell(m, key);
-                const isToday = key === todayKey;
-                const isPerfect = perfectColumns.has(key);
+              {columns.map((col, idx) => {
+                const state = computeCell(m, col);
+                const isToday = col.key === todayKey;
+                const isPerfect = perfectColumns.has(col.key);
                 const canTap = isYou && state === "pending";
+                const showStartLine = idx === firstPrePactIndex;
                 return (
                   <div
-                    key={key}
+                    key={col.key}
                     style={{
                       width: CELL_W,
                       flexShrink: 0,
@@ -344,19 +368,24 @@ export function CheckInGrid({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      background: isPerfect
-                        ? "rgba(156, 122, 184, 0.08)"
-                        : isToday
-                          ? "rgba(216, 98, 58, 0.06)"
-                          : "transparent",
+                      background: col.isPrePact
+                        ? "transparent"
+                        : isPerfect
+                          ? "rgba(156, 122, 184, 0.08)"
+                          : isToday
+                            ? "rgba(216, 98, 58, 0.06)"
+                            : "transparent",
+                      borderLeft: showStartLine
+                        ? "2px solid var(--ink-soft)"
+                        : "none",
                     }}
                   >
                     {canTap ? (
                       <button
                         type="button"
-                        onClick={() => onCellTap(key)}
+                        onClick={() => onCellTap(col.key)}
                         disabled={isPending}
-                        aria-label={`Log ${m.display_name} for ${key}`}
+                        aria-label={`Log ${m.display_name} for ${col.key}`}
                         className="press"
                         style={{
                           width: 26,
@@ -438,6 +467,20 @@ function CellGlyph({
       />
     );
   }
+  if (state === "prePact") {
+    return (
+      <div
+        aria-label="before pact started"
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: "50%",
+          border: "1px solid var(--line)",
+          background: "transparent",
+        }}
+      />
+    );
+  }
   if (state === "rest") {
     return (
       <div
@@ -452,5 +495,5 @@ function CellGlyph({
       />
     );
   }
-  return null;
+  return null; // preJoin → blank cell
 }
