@@ -270,7 +270,7 @@ export function CheckInGrid({
                         : "var(--mute)",
                   opacity: col.isPrePact ? 0.5 : 1,
                   borderLeft: showStartLine
-                    ? "2px solid var(--ink-soft)"
+                    ? "1px solid rgba(216, 98, 58, 0.5)"
                     : "none",
                   position: "relative",
                 }}
@@ -376,7 +376,7 @@ export function CheckInGrid({
                             ? "rgba(216, 98, 58, 0.06)"
                             : "transparent",
                       borderLeft: showStartLine
-                        ? "2px solid var(--ink-soft)"
+                        ? "1px solid rgba(216, 98, 58, 0.5)"
                         : "none",
                     }}
                   >

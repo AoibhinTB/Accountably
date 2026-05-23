@@ -343,42 +343,6 @@ export default async function PactPage({
         </section>
       )}
 
-      {groupStreak > 0 && (
-        <section className="px-5 pt-6">
-          <div
-            className="p-3 flex items-baseline gap-2"
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius)",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 28,
-                lineHeight: 1,
-                color: "var(--accent)",
-              }}
-            >
-              {groupStreak}
-            </span>
-            <span
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 16,
-                color: "var(--ink)",
-                lineHeight: 1.2,
-              }}
-            >
-              {groupStreakUnit}{" "}
-              <span style={{ color: "var(--ink-soft)" }}>group streak</span>
-            </span>
-          </div>
-        </section>
-      )}
-
-
       {challenge && memberStatus.length > 0 && (
         <section className="px-5 pt-6">
           <div className="mb-2 flex items-baseline justify-between">
@@ -558,7 +522,32 @@ export default async function PactPage({
 
       {challenge && (
         <section className="px-5 pt-6">
-          <div className="label mb-2">check-ins</div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="label">check-ins</span>
+            {groupStreak > 0 && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "3px 10px",
+                  borderRadius: 999,
+                  background: "var(--accent-soft)",
+                  color: "var(--accent)",
+                  fontFamily: "var(--font-stat-mono)",
+                  fontSize: 11,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                }}
+              >
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {groupStreak}
+                </span>{" "}
+                {groupStreakUnit} group streak
+              </span>
+            )}
+          </div>
           <CheckInGrid
             pactId={pact.id}
             currentUserId={currentUserId}
