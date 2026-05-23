@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useEffect, useLayoutEffect, useOptimistic, useRef, useTransition } from "react";
 import { backdateCompletion } from "../actions";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -21,44 +21,41 @@ type CellState = "done" | "pending" | "rest" | "blank";
 
 const DAY_MS = 86_400_000;
 
-// Period key = YYYY-MM-DD of the period's start (day for daily, Monday for
-// weekly). Mirrors the same scheme used elsewhere in the app.
-function periodKeyOf(date: Date, frequency: Frequency): string {
-  if (frequency === "daily") {
-    const d = new Date(date);
-    d.setUTCHours(0, 0, 0, 0);
-    return d.toISOString().slice(0, 10);
-  }
+function startOfPeriod(date: Date, frequency: Frequency): Date {
   const d = new Date(date);
   d.setUTCHours(0, 0, 0, 0);
-  const day = d.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + diff);
-  return d.toISOString().slice(0, 10);
+  if (frequency === "weekly") {
+    const day = d.getUTCDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setUTCDate(d.getUTCDate() + diff);
+  }
+  return d;
 }
 
+function periodKeyOf(date: Date, frequency: Frequency): string {
+  return startOfPeriod(date, frequency).toISOString().slice(0, 10);
+}
+
+// Generate columns from the pact's start period up to today's period.
 function generateColumns(
+  startDate: Date,
   now: Date,
   frequency: Frequency,
-  count: number,
 ): string[] {
   const stepMs = (frequency === "daily" ? 1 : 7) * DAY_MS;
-  const today = new Date(now);
-  today.setUTCHours(0, 0, 0, 0);
-
-  let cursor = frequency === "daily" ? today : new Date(today);
-  if (frequency === "weekly") {
-    const day = cursor.getUTCDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    cursor.setUTCDate(cursor.getUTCDate() + diff);
-  }
-
+  const firstStart = startOfPeriod(startDate, frequency);
+  const lastStart = startOfPeriod(now, frequency);
   const cols: string[] = [];
-  for (let i = 0; i < count; i++) {
+  let cursor = new Date(firstStart);
+  // Safety cap so a stale start_date can't lock the page up.
+  const MAX = frequency === "daily" ? 365 * 3 : 52 * 5;
+  let n = 0;
+  while (cursor.getTime() <= lastStart.getTime() && n < MAX) {
     cols.push(cursor.toISOString().slice(0, 10));
-    cursor = new Date(cursor.getTime() - stepMs);
+    cursor = new Date(cursor.getTime() + stepMs);
+    n++;
   }
-  return cols.reverse(); // oldest first → today/this-week last
+  return cols;
 }
 
 const DAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"] as const;
@@ -96,10 +93,9 @@ export function CheckInGrid({
   completions: Completion[];
 }) {
   const now = new Date();
-  const columnCount = challenge.frequency === "daily" ? 14 : 8;
-  const columns = generateColumns(now, challenge.frequency, columnCount);
+  const startDate = new Date(`${challenge.start_date}T00:00:00Z`);
+  const columns = generateColumns(startDate, now, challenge.frequency);
   const todayKey = periodKeyOf(now, challenge.frequency);
-  const pactStartMs = new Date(`${challenge.start_date}T00:00:00Z`).getTime();
   const stepMs = (challenge.frequency === "daily" ? 1 : 7) * DAY_MS;
 
   // Bucket completions by (period_key, user_id).
@@ -111,7 +107,6 @@ export function CheckInGrid({
     doneByPeriodUser.set(key, set);
   }
 
-  // dayIdx: 0=Mon ... 6=Sun (matches our days_of_week column convention)
   const dayIdxOfKey = (key: string) => {
     const d = new Date(`${key}T00:00:00Z`);
     return (d.getUTCDay() + 6) % 7;
@@ -122,34 +117,46 @@ export function CheckInGrid({
     challenge.days_of_week.length === 0 ||
     challenge.days_of_week.includes(dayIdxOfKey(key));
 
-  // ── Optimistic state for my own backdated taps ──────────────────────
+  // Optimistic state for the current user's backdated taps.
   const [optimisticMyDates, addOptimisticMyDate] = useOptimistic<
     Set<string>,
     string
   >(new Set(), (state, key) => new Set([...state, key]));
   const [isPending, startTransition] = useTransition();
 
-  const computeCell = (member: Member, colKey: string): CellState => {
-    const colStartMs = new Date(`${colKey}T00:00:00Z`).getTime();
-    const colEndMs = colStartMs + stepMs;
-    const memberJoinedMs = new Date(member.joined_at).getTime();
+  const memberJoinTimes = members.map((m) => ({
+    user_id: m.user_id,
+    joinedAt: new Date(m.joined_at).getTime(),
+  }));
 
-    // Pre-pact-start or pre-member-join: blank cell.
-    if (colEndMs <= pactStartMs) return "blank";
+  // A column is "perfect" if every member who was in the pact by the end of
+  // that period has checked in for it. Includes my optimistic dates.
+  const perfectColumns = new Set<string>();
+  for (const key of columns) {
+    if (!isRequired(key)) continue;
+    const colEndMs = new Date(`${key}T00:00:00Z`).getTime() + stepMs;
+    const expected = memberJoinTimes.filter((m) => m.joinedAt < colEndMs);
+    if (expected.length === 0) continue;
+    const doneSet = new Set(doneByPeriodUser.get(key) ?? []);
+    if (currentUserId && optimisticMyDates.has(key)) doneSet.add(currentUserId);
+    if (expected.every((m) => doneSet.has(m.user_id))) {
+      perfectColumns.add(key);
+    }
+  }
+
+  const computeCell = (member: Member, colKey: string): CellState => {
+    const colEndMs = new Date(`${colKey}T00:00:00Z`).getTime() + stepMs;
+    const memberJoinedMs = new Date(member.joined_at).getTime();
     if (colEndMs <= memberJoinedMs) return "blank";
     if (!isRequired(colKey)) return "rest";
-
     const set = doneByPeriodUser.get(colKey);
     if (set?.has(member.user_id)) return "done";
-
-    // Optimistic flag for my own row.
     if (
       member.user_id === currentUserId &&
       optimisticMyDates.has(colKey)
     ) {
       return "done";
     }
-
     return "pending";
   };
 
@@ -164,11 +171,25 @@ export function CheckInGrid({
     });
   };
 
+  // Scroll to the right edge (today) on mount.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, []);
+
+  // After data refreshes (e.g. after backdate), re-snap to the right.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [completions.length]);
+
   const NAME_COL_W = 84;
   const CELL_W = 38;
 
   return (
     <div
+      ref={scrollerRef}
       className="overflow-x-auto no-scrollbar"
       style={{
         background: "var(--card)",
@@ -197,14 +218,14 @@ export function CheckInGrid({
               background: "var(--card)",
               borderRight: "1px solid var(--line)",
               height: "100%",
+              zIndex: 1,
             }}
           />
           {columns.map((key) => {
             const isToday = key === todayKey;
+            const isPerfect = perfectColumns.has(key);
             const labels =
-              challenge.frequency === "daily"
-                ? dailyColLabels(key)
-                : null;
+              challenge.frequency === "daily" ? dailyColLabels(key) : null;
             const weeklyLabels =
               challenge.frequency === "weekly" ? weeklyColLabels(key) : null;
             return (
@@ -219,8 +240,16 @@ export function CheckInGrid({
                   justifyContent: "flex-end",
                   paddingBottom: 6,
                   fontFamily: "var(--font-stat-mono)",
-                  background: isToday ? "var(--accent-soft)" : "transparent",
-                  color: isToday ? "var(--accent)" : "var(--mute)",
+                  background: isPerfect
+                    ? "var(--perfect-soft)"
+                    : isToday
+                      ? "var(--accent-soft)"
+                      : "transparent",
+                  color: isPerfect
+                    ? "var(--perfect)"
+                    : isToday
+                      ? "var(--accent)"
+                      : "var(--mute)",
                 }}
               >
                 {labels && (
@@ -281,6 +310,7 @@ export function CheckInGrid({
                   alignItems: "center",
                   gap: 6,
                   padding: "0 8px",
+                  zIndex: 1,
                 }}
               >
                 <Avatar name={m.display_name} size={24} />
@@ -302,8 +332,8 @@ export function CheckInGrid({
               {columns.map((key) => {
                 const state = computeCell(m, key);
                 const isToday = key === todayKey;
-                const canTap =
-                  isYou && (state === "pending" || state === "rest" && false);
+                const isPerfect = perfectColumns.has(key);
+                const canTap = isYou && state === "pending";
                 return (
                   <div
                     key={key}
@@ -314,9 +344,11 @@ export function CheckInGrid({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      background: isToday
-                        ? "rgba(216, 98, 58, 0.06)"
-                        : "transparent",
+                      background: isPerfect
+                        ? "rgba(156, 122, 184, 0.08)"
+                        : isToday
+                          ? "rgba(216, 98, 58, 0.06)"
+                          : "transparent",
                     }}
                   >
                     {canTap ? (
@@ -340,7 +372,7 @@ export function CheckInGrid({
                         }}
                       />
                     ) : (
-                      <CellGlyph state={state} />
+                      <CellGlyph state={state} perfect={isPerfect} />
                     )}
                   </div>
                 );
@@ -353,20 +385,27 @@ export function CheckInGrid({
   );
 }
 
-function CellGlyph({ state }: { state: CellState }) {
+function CellGlyph({
+  state,
+  perfect,
+}: {
+  state: CellState;
+  perfect: boolean;
+}) {
   if (state === "done") {
     return (
       <div
-        aria-label="checked in"
+        aria-label={perfect ? "perfect day check-in" : "checked in"}
         style={{
           width: 26,
           height: 26,
           borderRadius: "50%",
-          background: "var(--accent)",
+          background: perfect ? "var(--perfect)" : "var(--accent)",
           color: "#fff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          boxShadow: perfect ? "0 0 0 2px var(--perfect-soft)" : "none",
         }}
       >
         <svg
@@ -413,5 +452,5 @@ function CellGlyph({ state }: { state: CellState }) {
       />
     );
   }
-  return null; // blank
+  return null;
 }

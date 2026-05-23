@@ -15,6 +15,8 @@
   --accent2: #F2A93B;
   --accent2-soft: #FCE7BB;
   --good: #5B6E3F;
+  --perfect: #9C7AB8;
+  --perfect-soft: #EFE3F4;
   --radius: 18px;
   --radius-sm: 12px;
   --radius-lg: 24px;
@@ -36,6 +38,8 @@
   --color-accent2: var(--accent2);
   --color-accent2-soft: var(--accent2-soft);
   --color-good: var(--good);
+  --color-perfect: var(--perfect);
+  --color-perfect-soft: var(--perfect-soft);
   --font-display: var(--font-display);
   --font-sans: var(--font-body);
   --font-mono: var(--font-stat-mono);

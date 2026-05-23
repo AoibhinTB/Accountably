@@ -3,15 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ConfirmForm } from "@/components/confirm-form";
-import {
-  CompletionFeed,
-  CompletionItem,
-  type CompletionItemData,
-} from "@/components/completion-item";
-import {
-  summarizeReactions,
-  type ReactionRow,
-} from "@/components/reactions/constants";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
 import { Chevron } from "@/components/ui/chevron";
@@ -19,15 +10,12 @@ import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { Squiggle } from "@/components/ui/squiggle";
 import {
-  buildWeekDots,
   currentGroupStreak,
   formatDate,
   startOfPeriodUTC,
   timeAgo,
-  type WeekDay,
 } from "@/lib/period";
 import { CheckInGrid } from "./check-in-grid";
-import { CheckInsView } from "./check-ins-view";
 import { IconEditTrigger } from "./icon-edit-trigger";
 import { NudgeButton } from "./nudge-button";
 import { PactCircle } from "./pact-circle";
@@ -59,38 +47,10 @@ type Challenge = {
   days_of_week: number[] | null;
 };
 
-type CompletionRow = {
-  id: string;
-  completed_at: string;
-  note: string | null;
-  user_id: string;
-  profiles: { display_name: string } | null;
-  reactions: ReactionRow[] | null;
-};
-
 const stickerForName = (name: string) =>
   name.trim()[0]?.toUpperCase() || "?";
 
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-
-const dayKeyUTC = (iso: string) => {
-  const d = new Date(iso);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
-};
-
-const dayLabel = (key: string, now: Date = new Date()) => {
-  const today = new Date(now);
-  today.setUTCHours(0, 0, 0, 0);
-  const todayKey = today.toISOString().slice(0, 10);
-  const yesterday = new Date(today);
-  yesterday.setUTCDate(today.getUTCDate() - 1);
-  const yesterdayKey = yesterday.toISOString().slice(0, 10);
-
-  if (key === todayKey) return "today";
-  if (key === yesterdayKey) return "yesterday";
-  return formatDate(key + "T00:00:00Z");
-};
 
 const cadenceLabel = (
   frequency: "daily" | "weekly",
@@ -141,15 +101,15 @@ export default async function PactPage({
 
   const periodStart = challenge ? startOfPeriodUTC(challenge.frequency) : null;
   const periodLabel = challenge?.frequency === "weekly" ? "this week" : "today";
-  const weekStart =
-    challenge?.frequency === "daily" ? startOfPeriodUTC("weekly") : null;
 
-  // Phase 2: members + feed completions + recent (60-day) completions in
-  // parallel. The 60-day query powers all three of: per-member current-period
-  // status, the week-dots, and the group-streak walk. One query instead of
-  // three — saves two round trips.
-  const lookback60 = new Date();
-  lookback60.setUTCDate(lookback60.getUTCDate() - 60);
+  // Phase 2: members + feed completions + all-pact-history completions in
+  // parallel. We fetch the full pact history so the grid can render every
+  // column from pact-start to today (instead of only the last 60 days).
+  // Falls back to "epoch-ish" if there's no challenge — the recentCompletions
+  // promise is short-circuited in that case anyway.
+  const pactHistoryStart = challenge?.start_date
+    ? `${challenge.start_date}T00:00:00Z`
+    : "1970-01-01T00:00:00Z";
 
   type LightCompletion = {
     id: string;
@@ -165,24 +125,12 @@ export default async function PactPage({
     .order("joined_at", { ascending: true })
     .returns<Member[]>();
 
-  const completionsPromise = challenge
-    ? supabase
-        .from("completions")
-        .select(
-          "id, completed_at, note, user_id, profiles(display_name), reactions(emoji, user_id)",
-        )
-        .eq("challenge_id", challenge.id)
-        .order("completed_at", { ascending: false })
-        .limit(30)
-        .returns<CompletionRow[]>()
-    : Promise.resolve({ data: [] as CompletionRow[] });
-
   const recentCompletionsPromise = challenge
     ? supabase
         .from("completions")
         .select("id, user_id, completed_at, note")
         .eq("challenge_id", challenge.id)
-        .gte("completed_at", lookback60.toISOString())
+        .gte("completed_at", pactHistoryStart)
         .order("completed_at", { ascending: false })
         .returns<LightCompletion[]>()
     : Promise.resolve({ data: [] as LightCompletion[] });
@@ -211,28 +159,20 @@ export default async function PactPage({
 
   const [
     { data: members },
-    { data: completions },
     { data: recentCompletions },
     { data: nudges },
   ] = await Promise.all([
     membersPromise,
-    completionsPromise,
     recentCompletionsPromise,
     nudgesPromise,
   ]);
 
-  // Derive period + week subsets from the 60-day data.
+  // Derive period subset for the per-member today list.
   const periodCompletions = periodStart
     ? (recentCompletions ?? []).filter(
         (c) => new Date(c.completed_at) >= periodStart,
       )
     : [];
-  const weekCompletions = weekStart
-    ? (recentCompletions ?? []).filter(
-        (c) => new Date(c.completed_at) >= weekStart,
-      )
-    : [];
-
   // My current-period completion is the most recent one I've logged within
   // the period. The "add a note" disclosure binds to its id.
   const myCurrentCompletion =
@@ -260,28 +200,6 @@ export default async function PactPage({
     }
   }
 
-  // Streak dots — only meaningful for daily pacts. One state per day of the
-  // current week: "done" (all required members hit it), "pending" (required
-  // day not yet fully done), or "rest" (pact doesn't require this day).
-  const weekDots: WeekDay[] | null =
-    challenge?.frequency === "daily"
-      ? buildWeekDots(
-          weekCompletions ?? [],
-          (members ?? []).map((m) => ({
-            user_id: m.user_id,
-            joined_at: m.joined_at,
-          })),
-          challenge.days_of_week,
-        )
-      : null;
-  const weekRequiredCount = weekDots
-    ? weekDots.filter((s) => s !== "rest").length
-    : 0;
-  const weekDoneCount = weekDots
-    ? weekDots.filter((s) => s === "done").length
-    : 0;
-  const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"] as const;
-
   // Group streak — consecutive periods where every expected member checked in.
   const groupStreak = challenge
     ? currentGroupStreak(
@@ -302,29 +220,6 @@ export default async function PactPage({
       : groupStreak === 1
         ? "day"
         : "days";
-
-  const completionItems: CompletionItemData[] = (completions ?? []).map(
-    (row) => ({
-      id: row.id,
-      userName: row.profiles?.display_name ?? "Unknown",
-      completedAt: row.completed_at,
-      note: row.note,
-      reactions: summarizeReactions(row.reactions, userData.user?.id ?? null),
-    }),
-  );
-
-  // Group completions by UTC date for the day-by-day disclosure view.
-  const completionsByDay = new Map<string, CompletionItemData[]>();
-  for (const item of completionItems) {
-    const key = dayKeyUTC(item.completedAt);
-    const list = completionsByDay.get(key) ?? [];
-    list.push(item);
-    completionsByDay.set(key, list);
-  }
-  const todayKey = dayKeyUTC(new Date().toISOString());
-  const completionDays = [...completionsByDay.entries()]
-    .map(([key, items]) => ({ key, items }))
-    .sort((a, b) => b.key.localeCompare(a.key));
 
   const h = await headers();
   const host = h.get("host") ?? "localhost:3000";
@@ -448,155 +343,41 @@ export default async function PactPage({
         </section>
       )}
 
-      {weekDots && (
+      {groupStreak > 0 && (
         <section className="px-5 pt-6">
           <div
-            className="p-4"
+            className="p-3 flex items-baseline gap-2"
             style={{
               background: "var(--card)",
               border: "1px solid var(--line)",
               borderRadius: "var(--radius)",
             }}
           >
-            {groupStreak > 0 && (
-              <div
-                className="mb-4 flex items-baseline gap-2"
-                style={{
-                  paddingBottom: 12,
-                  borderBottom: "1px dashed var(--line)",
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: 32,
-                    lineHeight: 1,
-                    color: "var(--accent)",
-                  }}
-                >
-                  {groupStreak}
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: 17,
-                    color: "var(--ink)",
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {groupStreakUnit}{" "}
-                  <span style={{ color: "var(--ink-soft)" }}>group streak</span>
-                </span>
-              </div>
-            )}
-            <div className="mb-3 flex items-baseline justify-between">
-              <span className="label">this week · group</span>
-              <span
-                style={{
-                  fontFamily: "var(--font-stat-mono)",
-                  fontSize: 12,
-                  color: "var(--accent)",
-                  fontWeight: 600,
-                }}
-              >
-                {weekDoneCount}/{weekRequiredCount}
-              </span>
-            </div>
-            <div className="flex justify-between gap-1">
-              {weekDots.map((state, i) => {
-                const isRest = state === "rest";
-                const isDone = state === "done";
-                return (
-                  <div key={i} className="flex flex-col items-center gap-1.5">
-                    <span
-                      className="label"
-                      style={{
-                        fontSize: 9,
-                        letterSpacing: "0.08em",
-                        opacity: isRest ? 0.4 : 1,
-                      }}
-                    >
-                      {DAY_LABELS[i]}
-                    </span>
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: "50%",
-                        background: isDone ? "var(--accent)" : "transparent",
-                        border: isDone
-                          ? "none"
-                          : isRest
-                            ? "1px solid var(--line)"
-                            : "1.5px dashed var(--line-strong)",
-                        color: "#fff",
-                        opacity: isRest ? 0.5 : 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                      aria-hidden
-                    >
-                      {isDone && (
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.4"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M5 12.5l4.5 4.5L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <span
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 28,
+                lineHeight: 1,
+                color: "var(--accent)",
+              }}
+            >
+              {groupStreak}
+            </span>
+            <span
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 16,
+                color: "var(--ink)",
+                lineHeight: 1.2,
+              }}
+            >
+              {groupStreakUnit}{" "}
+              <span style={{ color: "var(--ink-soft)" }}>group streak</span>
+            </span>
           </div>
         </section>
       )}
 
-      {challenge?.frequency === "weekly" && groupStreak > 0 && (
-        <section className="px-5 pt-6">
-          <div
-            className="p-4"
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius)",
-            }}
-          >
-            <div className="label mb-2">this pact</div>
-            <div className="flex items-baseline gap-2">
-              <span
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: 32,
-                  lineHeight: 1,
-                  color: "var(--accent)",
-                }}
-              >
-                {groupStreak}
-              </span>
-              <span
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: 17,
-                  color: "var(--ink)",
-                  lineHeight: 1.2,
-                }}
-              >
-                {groupStreakUnit}{" "}
-                <span style={{ color: "var(--ink-soft)" }}>group streak</span>
-              </span>
-            </div>
-          </div>
-        </section>
-      )}
 
       {challenge && memberStatus.length > 0 && (
         <section className="px-5 pt-6">
@@ -692,10 +473,7 @@ export default async function PactPage({
                   </div>
 
                   {showNoteAffordance && (
-                    <details
-                      className="group px-3 pb-3"
-                      open={!completion.note}
-                    >
+                    <details className="group px-3 pb-3">
                       <summary
                         className="press inline-flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden"
                         style={{
@@ -778,99 +556,29 @@ export default async function PactPage({
         </section>
       )}
 
-      <section className="px-5 pt-6">
-        <CheckInsView
-          recentView={
-            completionDays.length === 0 ? (
-              <CompletionFeed
-                items={[]}
-                revalidatePath={`/pacts/${id}`}
-                emptyMessage="no check-ins yet. be the first."
-              />
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {completionDays.map((day) => {
-                  const noteCount = day.items.filter((c) => c.note).length;
-                  return (
-                    <li key={day.key}>
-                      <details className="group" open={day.key === todayKey}>
-                        <summary
-                          className="press flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden"
-                          style={{
-                            background: "var(--card)",
-                            border: "1px solid var(--line)",
-                            borderRadius: "var(--radius)",
-                            padding: "0 16px",
-                            color: "var(--ink)",
-                          }}
-                        >
-                          <span className="inline-flex items-baseline gap-2">
-                            <span
-                              style={{
-                                fontFamily: "var(--font-display)",
-                                fontSize: 17,
-                                lineHeight: 1,
-                                color: "var(--ink)",
-                              }}
-                            >
-                              {dayLabel(day.key)}
-                            </span>
-                            <span className="label">
-                              {day.items.length} check-in
-                              {day.items.length === 1 ? "" : "s"}
-                              {noteCount > 0
-                                ? ` · ${noteCount} note${noteCount === 1 ? "" : "s"}`
-                                : ""}
-                            </span>
-                          </span>
-                          <Chevron
-                            direction="down"
-                            size={14}
-                            strokeWidth={2}
-                            className="transition-transform group-open:rotate-180"
-                            style={{ color: "var(--mute)" }}
-                          />
-                        </summary>
-                        <ul className="mt-2 flex flex-col gap-2">
-                          {day.items.map((item) => (
-                            <CompletionItem
-                              key={item.id}
-                              item={item}
-                              revalidatePath={`/pacts/${id}`}
-                            />
-                          ))}
-                        </ul>
-                      </details>
-                    </li>
-                  );
-                })}
-              </ul>
-            )
-          }
-          gridView={
-            challenge ? (
-              <CheckInGrid
-                pactId={pact.id}
-                currentUserId={currentUserId}
-                challenge={{
-                  frequency: challenge.frequency,
-                  days_of_week: challenge.days_of_week,
-                  start_date: challenge.start_date,
-                }}
-                members={(members ?? []).map((m) => ({
-                  user_id: m.user_id,
-                  joined_at: m.joined_at,
-                  display_name: m.profiles?.display_name ?? "unknown",
-                }))}
-                completions={(recentCompletions ?? []).map((c) => ({
-                  user_id: c.user_id,
-                  completed_at: c.completed_at,
-                }))}
-              />
-            ) : null
-          }
-        />
-      </section>
+      {challenge && (
+        <section className="px-5 pt-6">
+          <div className="label mb-2">check-ins</div>
+          <CheckInGrid
+            pactId={pact.id}
+            currentUserId={currentUserId}
+            challenge={{
+              frequency: challenge.frequency,
+              days_of_week: challenge.days_of_week,
+              start_date: challenge.start_date,
+            }}
+            members={(members ?? []).map((m) => ({
+              user_id: m.user_id,
+              joined_at: m.joined_at,
+              display_name: m.profiles?.display_name ?? "unknown",
+            }))}
+            completions={(recentCompletions ?? []).map((c) => ({
+              user_id: c.user_id,
+              completed_at: c.completed_at,
+            }))}
+          />
+        </section>
+      )}
 
       <section className="px-5 pt-8">
         <details className="group">
