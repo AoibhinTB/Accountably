@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useOptimistic, useRef, useTransition } from "react";
-import { backdateCompletion } from "../actions";
+import { togglePeriodCompletion } from "../actions";
 import { Avatar } from "@/components/ui/avatar";
 
 type Frequency = "daily" | "weekly";
@@ -128,17 +128,34 @@ export function CheckInGrid({
     challenge.days_of_week.length === 0 ||
     challenge.days_of_week.includes(dayIdxOfKey(key));
 
-  // Optimistic state for the current user's backdated taps.
-  const [optimisticMyDates, addOptimisticMyDate] = useOptimistic<
-    Set<string>,
-    string
-  >(new Set(), (state, key) => new Set([...state, key]));
+  // Optimistic toggle state. Set members reflect *flipped* state vs the
+  // server data — tapping a pending cell adds it (locally → done), tapping
+  // a done cell adds it too (locally → un-done). Resolves back to server
+  // state on revalidate.
+  const [toggled, toggleOptimistic] = useOptimistic<Set<string>, string>(
+    new Set(),
+    (state, key) => {
+      const next = new Set(state);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    },
+  );
   const [isPending, startTransition] = useTransition();
 
   const memberJoinTimes = members.map((m) => ({
     user_id: m.user_id,
     joinedAt: new Date(m.joined_at).getTime(),
   }));
+
+  // Helper: is the current user "done" for a given column key, factoring
+  // in optimistic toggle state.
+  const isMyDone = (key: string): boolean => {
+    if (!currentUserId) return false;
+    const serverDone =
+      doneByPeriodUser.get(key)?.has(currentUserId) ?? false;
+    return toggled.has(key) ? !serverDone : serverDone;
+  };
 
   const perfectColumns = new Set<string>();
   for (const col of columns) {
@@ -148,7 +165,11 @@ export function CheckInGrid({
     const expected = memberJoinTimes.filter((m) => m.joinedAt < colEndMs);
     if (expected.length === 0) continue;
     const doneSet = new Set(doneByPeriodUser.get(col.key) ?? []);
-    if (currentUserId && optimisticMyDates.has(col.key)) doneSet.add(currentUserId);
+    if (currentUserId) {
+      const meDone = isMyDone(col.key);
+      if (meDone) doneSet.add(currentUserId);
+      else doneSet.delete(currentUserId);
+    }
     if (expected.every((m) => doneSet.has(m.user_id))) {
       perfectColumns.add(col.key);
     }
@@ -163,21 +184,21 @@ export function CheckInGrid({
     const memberJoinedMs = new Date(member.joined_at).getTime();
     if (colEndMs <= memberJoinedMs) return "preJoin";
     if (!isRequired(col.key)) return "rest";
-    const set = doneByPeriodUser.get(col.key);
-    if (set?.has(member.user_id)) return "done";
-    if (member.user_id === currentUserId && optimisticMyDates.has(col.key)) {
-      return "done";
+
+    if (member.user_id === currentUserId) {
+      return isMyDone(col.key) ? "done" : "pending";
     }
-    return "pending";
+    const set = doneByPeriodUser.get(col.key);
+    return set?.has(member.user_id) ? "done" : "pending";
   };
 
   const onCellTap = (colKey: string) => {
     if (isPending) return;
     startTransition(async () => {
-      addOptimisticMyDate(colKey);
-      const result = await backdateCompletion(pactId, colKey);
+      toggleOptimistic(colKey);
+      const result = await togglePeriodCompletion(pactId, colKey);
       if (!result.ok) {
-        console.error("backdateCompletion failed:", result.error);
+        console.error("togglePeriodCompletion failed:", result.error);
       }
     });
   };
@@ -356,7 +377,9 @@ export function CheckInGrid({
                 const state = computeCell(m, col);
                 const isToday = col.key === todayKey;
                 const isPerfect = perfectColumns.has(col.key);
-                const canTap = isYou && state === "pending";
+                // Tap toggles for me: pending → done (backdate), done → pending (untick).
+                const canTap =
+                  isYou && (state === "pending" || state === "done");
                 const showStartLine = idx === firstPrePactIndex;
                 return (
                   <div
@@ -385,21 +408,26 @@ export function CheckInGrid({
                         type="button"
                         onClick={() => onCellTap(col.key)}
                         disabled={isPending}
-                        aria-label={`Log ${m.display_name} for ${col.key}`}
+                        aria-label={
+                          state === "done"
+                            ? `Un-log ${m.display_name} for ${col.key}`
+                            : `Log ${m.display_name} for ${col.key}`
+                        }
+                        aria-pressed={state === "done"}
                         className="press"
                         style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: "50%",
                           background: "transparent",
-                          border: "1.5px dashed var(--line-strong)",
-                          color: "var(--mute)",
+                          border: "none",
+                          padding: 0,
+                          cursor: "pointer",
+                          touchAction: "manipulation",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          touchAction: "manipulation",
                         }}
-                      />
+                      >
+                        <CellGlyph state={state} perfect={isPerfect} />
+                      </button>
                     ) : (
                       <CellGlyph state={state} perfect={isPerfect} />
                     )}

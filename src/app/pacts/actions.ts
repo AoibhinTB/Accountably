@@ -371,22 +371,26 @@ export async function toggleNudge(
   return { ok: true, nudged: true };
 }
 
-// Log a check-in for a past day (or week, for weekly pacts). The grid view
-// surfaces this — tapping an empty cell in your own row inserts a completion
-// dated to that period. Always writes the current user's own row (the
-// set_completion_user_id trigger fills user_id from auth.uid()).
-export async function backdateCompletion(
+// Toggle a check-in for any day (today or past). If the user has any
+// completion in that day's period (today for daily, the date's week for
+// weekly), delete them all (un-tick). Otherwise insert a new completion
+// dated at noon UTC of that day. Used by the grid view — tap toggles
+// regardless of current state.
+export async function togglePeriodCompletion(
   pactId: string,
   dateISO: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; done: boolean } | { ok: false; error: string }> {
   if (!pactId || !dateISO) return { ok: false, error: "Missing args" };
-
-  // Accept YYYY-MM-DD; sanity-check shape.
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
     return { ok: false, error: "Invalid date" };
   }
 
   const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not authenticated" };
 
   const { data: challenge, error: chErr } = await supabase
     .from("challenges")
@@ -397,14 +401,38 @@ export async function backdateCompletion(
 
   if (chErr) return { ok: false, error: chErr.message };
   if (!challenge) return { ok: false, error: "No active challenge" };
+  if (challenge.frequency !== "daily" && challenge.frequency !== "weekly") {
+    return { ok: false, error: "Unsupported frequency" };
+  }
 
   const target = new Date(`${dateISO}T12:00:00Z`);
   const today = new Date();
   today.setUTCHours(23, 59, 59, 999);
-  const start = new Date(`${challenge.start_date}T00:00:00Z`);
+  const startDay = new Date(`${challenge.start_date}T00:00:00Z`);
 
   if (target > today) return { ok: false, error: "Can't log a future day" };
-  if (target < start) return { ok: false, error: "Before the pact started" };
+  if (target < startDay) return { ok: false, error: "Before the pact started" };
+
+  const periodStart = startOfPeriodUTC(challenge.frequency, target);
+  const stepMs =
+    (challenge.frequency === "daily" ? 1 : 7) * 24 * 60 * 60 * 1000;
+  const periodEnd = new Date(periodStart.getTime() + stepMs);
+
+  // Delete-if-exists: all of my completions in that period.
+  const { data: deleted } = await supabase
+    .from("completions")
+    .delete()
+    .eq("challenge_id", challenge.id)
+    .eq("user_id", user.id)
+    .gte("completed_at", periodStart.toISOString())
+    .lt("completed_at", periodEnd.toISOString())
+    .select("id");
+
+  if (deleted && deleted.length > 0) {
+    revalidatePath(`/pacts/${pactId}`);
+    revalidatePath("/feed");
+    return { ok: true, done: false };
+  }
 
   const { error } = await supabase
     .from("completions")
@@ -417,6 +445,17 @@ export async function backdateCompletion(
 
   revalidatePath(`/pacts/${pactId}`);
   revalidatePath("/feed");
+  return { ok: true, done: true };
+}
+
+// Insert-only backdate (kept for any callers that explicitly want add-only).
+// Grid uses togglePeriodCompletion instead so taps can also un-tick.
+export async function backdateCompletion(
+  pactId: string,
+  dateISO: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await togglePeriodCompletion(pactId, dateISO);
+  if (!result.ok) return result;
   return { ok: true };
 }
 

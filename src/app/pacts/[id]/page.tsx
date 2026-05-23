@@ -368,7 +368,6 @@ export default async function PactPage({
             {memberStatus.map(({ member: m, completion }, i, arr) => {
               const isYou = m.user_id === userData.user?.id;
               const name = m.profiles?.display_name ?? "unknown";
-              const showNoteAffordance = isYou && completion;
               return (
                 <li
                   key={m.user_id}
@@ -436,87 +435,87 @@ export default async function PactPage({
                     )}
                   </div>
 
-                  {showNoteAffordance && (
-                    <details className="group px-3 pb-3">
-                      <summary
-                        className="press inline-flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden"
-                        style={{
-                          marginLeft: 48, // align under the text column, past the avatar
-                          padding: "6px 10px",
-                          borderRadius: 999,
-                          background: "var(--card-inset)",
-                          color: "var(--ink-soft)",
-                          fontFamily: "var(--font-stat-mono)",
-                          fontSize: 11,
-                          letterSpacing: "0.04em",
-                          textTransform: "uppercase",
-                          fontWeight: 500,
-                        }}
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <path d="M12 5v14M5 12h14" />
-                        </svg>
-                        <span>
-                          {completion.note ? "edit note" : "add a note"}
-                        </span>
-                      </summary>
-                      <form
-                        action={saveCompletionNote}
-                        className="mt-2.5 flex flex-col gap-2.5"
-                        style={{ marginLeft: 48 }}
-                      >
-                        <input type="hidden" name="pact_id" value={pact.id} />
-                        <input
-                          type="hidden"
-                          name="completion_id"
-                          value={completion.id}
-                        />
-                        <textarea
-                          name="note"
-                          rows={2}
-                          maxLength={500}
-                          defaultValue={completion.note ?? ""}
-                          placeholder="how did it go?"
-                          className="w-full resize-none outline-none"
-                          style={{
-                            ...inputStyle,
-                            height: "auto",
-                            paddingTop: 10,
-                            paddingBottom: 10,
-                            fontFamily: "var(--font-display)",
-                            fontStyle: "italic",
-                            fontSize: 16,
-                          }}
-                        />
-                        <SubmitButton
-                          pendingLabel="saving…"
-                          style={{
-                            ...primaryStyle,
-                            minHeight: 40,
-                            fontSize: 14,
-                            alignSelf: "flex-start",
-                            padding: "0 16px",
-                          }}
-                        >
-                          {completion.note ? "update note" : "save note"}
-                        </SubmitButton>
-                      </form>
-                    </details>
-                  )}
                 </li>
               );
             })}
           </ul>
+
+          {myCurrentCompletion && (
+            <details className="group mt-3">
+              <summary
+                className="press inline-flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden"
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 999,
+                  background: "transparent",
+                  border: "1px solid var(--line-strong)",
+                  color: "var(--ink-soft)",
+                  fontFamily: "var(--font-stat-mono)",
+                  fontSize: 11,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                }}
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span>
+                  {myCurrentCompletion.note ? "edit note" : "add a note"}
+                </span>
+              </summary>
+              <form
+                action={saveCompletionNote}
+                className="mt-2.5 flex flex-col gap-2.5"
+              >
+                <input type="hidden" name="pact_id" value={pact.id} />
+                <input
+                  type="hidden"
+                  name="completion_id"
+                  value={myCurrentCompletion.id}
+                />
+                <textarea
+                  name="note"
+                  rows={2}
+                  maxLength={500}
+                  defaultValue={myCurrentCompletion.note ?? ""}
+                  placeholder="how did it go?"
+                  className="w-full resize-none outline-none"
+                  style={{
+                    ...inputStyle,
+                    height: "auto",
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    fontFamily: "var(--font-display)",
+                    fontStyle: "italic",
+                    fontSize: 16,
+                  }}
+                />
+                <SubmitButton
+                  pendingLabel="saving…"
+                  style={{
+                    ...primaryStyle,
+                    minHeight: 40,
+                    fontSize: 14,
+                    alignSelf: "flex-start",
+                    padding: "0 16px",
+                  }}
+                >
+                  {myCurrentCompletion.note ? "update note" : "save note"}
+                </SubmitButton>
+              </form>
+            </details>
+          )}
         </section>
       )}
 
