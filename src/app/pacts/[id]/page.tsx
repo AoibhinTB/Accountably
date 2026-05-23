@@ -26,12 +26,14 @@ import {
   timeAgo,
   type WeekDay,
 } from "@/lib/period";
+import { CheckInGrid } from "./check-in-grid";
+import { CheckInsView } from "./check-ins-view";
 import { IconEditTrigger } from "./icon-edit-trigger";
 import { NudgeButton } from "./nudge-button";
+import { PactCircle } from "./pact-circle";
 import {
   deletePact,
   saveCompletionNote,
-  toggleQuickLogForm,
   updatePact,
 } from "../actions";
 import { InviteLink } from "./invite-link";
@@ -435,62 +437,14 @@ export default async function PactPage({
         </div>
       )}
 
-      {challenge && !myCurrentCompletion && (
-        <section className="px-5 pt-6">
-          <form action={toggleQuickLogForm.bind(null, pact.id)}>
-            <SubmitButton
-              pendingLabel="marking…"
-              className="w-full"
-              style={{
-                minHeight: 64,
-                background: "var(--accent)",
-                color: "#fff",
-                borderRadius: "var(--radius-lg)",
-                border: "none",
-                fontFamily: "var(--font-display)",
-                fontSize: 22,
-                boxShadow: "0 8px 30px rgba(216, 98, 58, 0.35)",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-              }}
-            >
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M5 12.5l4.5 4.5L19 7" />
-              </svg>
-              <span>mark {periodLabel} done</span>
-            </SubmitButton>
-            <p
-              className="mt-2 text-center text-xs"
-              style={{ color: "var(--mute)", lineHeight: 1.4 }}
-            >
-              or tap the circle for this pact on{" "}
-              <Link
-                href="/feed"
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontStyle: "italic",
-                  color: "var(--ink-soft)",
-                  textDecoration: "underline",
-                  textDecorationColor: "var(--accent)",
-                  textUnderlineOffset: 3,
-                }}
-              >
-                feed
-              </Link>
-            </p>
-          </form>
+      {challenge && (
+        <section className="px-5 pt-6 flex justify-center">
+          <PactCircle
+            pactId={pact.id}
+            icon={pact.icon}
+            initialDone={!!myCurrentCompletion}
+            periodLabel={periodLabel}
+          />
         </section>
       )}
 
@@ -825,70 +779,97 @@ export default async function PactPage({
       )}
 
       <section className="px-5 pt-6">
-        <div className="label mb-2">check-ins</div>
-        {completionDays.length === 0 ? (
-          <CompletionFeed
-            items={[]}
-            revalidatePath={`/pacts/${id}`}
-            emptyMessage="no check-ins yet. be the first."
-          />
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {completionDays.map((day) => {
-              const noteCount = day.items.filter((c) => c.note).length;
-              return (
-                <li key={day.key}>
-                  <details className="group" open={day.key === todayKey}>
-                    <summary
-                      className="press flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden"
-                      style={{
-                        background: "var(--card)",
-                        border: "1px solid var(--line)",
-                        borderRadius: "var(--radius)",
-                        padding: "0 16px",
-                        color: "var(--ink)",
-                      }}
-                    >
-                      <span className="inline-flex items-baseline gap-2">
-                        <span
+        <CheckInsView
+          recentView={
+            completionDays.length === 0 ? (
+              <CompletionFeed
+                items={[]}
+                revalidatePath={`/pacts/${id}`}
+                emptyMessage="no check-ins yet. be the first."
+              />
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {completionDays.map((day) => {
+                  const noteCount = day.items.filter((c) => c.note).length;
+                  return (
+                    <li key={day.key}>
+                      <details className="group" open={day.key === todayKey}>
+                        <summary
+                          className="press flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden"
                           style={{
-                            fontFamily: "var(--font-display)",
-                            fontSize: 17,
-                            lineHeight: 1,
+                            background: "var(--card)",
+                            border: "1px solid var(--line)",
+                            borderRadius: "var(--radius)",
+                            padding: "0 16px",
                             color: "var(--ink)",
                           }}
                         >
-                          {dayLabel(day.key)}
-                        </span>
-                        <span className="label">
-                          {day.items.length} check-in
-                          {day.items.length === 1 ? "" : "s"}
-                          {noteCount > 0 ? ` · ${noteCount} note${noteCount === 1 ? "" : "s"}` : ""}
-                        </span>
-                      </span>
-                      <Chevron
-                        direction="down"
-                        size={14}
-                        strokeWidth={2}
-                        className="transition-transform group-open:rotate-180"
-                        style={{ color: "var(--mute)" }}
-                      />
-                    </summary>
-                    <ul className="mt-2 flex flex-col gap-2">
-                      {day.items.map((item) => (
-                        <CompletionItem
-                          key={item.id}
-                          item={item}
-                          revalidatePath={`/pacts/${id}`}
-                        />
-                      ))}
-                    </ul>
-                  </details>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                          <span className="inline-flex items-baseline gap-2">
+                            <span
+                              style={{
+                                fontFamily: "var(--font-display)",
+                                fontSize: 17,
+                                lineHeight: 1,
+                                color: "var(--ink)",
+                              }}
+                            >
+                              {dayLabel(day.key)}
+                            </span>
+                            <span className="label">
+                              {day.items.length} check-in
+                              {day.items.length === 1 ? "" : "s"}
+                              {noteCount > 0
+                                ? ` · ${noteCount} note${noteCount === 1 ? "" : "s"}`
+                                : ""}
+                            </span>
+                          </span>
+                          <Chevron
+                            direction="down"
+                            size={14}
+                            strokeWidth={2}
+                            className="transition-transform group-open:rotate-180"
+                            style={{ color: "var(--mute)" }}
+                          />
+                        </summary>
+                        <ul className="mt-2 flex flex-col gap-2">
+                          {day.items.map((item) => (
+                            <CompletionItem
+                              key={item.id}
+                              item={item}
+                              revalidatePath={`/pacts/${id}`}
+                            />
+                          ))}
+                        </ul>
+                      </details>
+                    </li>
+                  );
+                })}
+              </ul>
+            )
+          }
+          gridView={
+            challenge ? (
+              <CheckInGrid
+                pactId={pact.id}
+                currentUserId={currentUserId}
+                challenge={{
+                  frequency: challenge.frequency,
+                  days_of_week: challenge.days_of_week,
+                  start_date: challenge.start_date,
+                }}
+                members={(members ?? []).map((m) => ({
+                  user_id: m.user_id,
+                  joined_at: m.joined_at,
+                  display_name: m.profiles?.display_name ?? "unknown",
+                }))}
+                completions={(recentCompletions ?? []).map((c) => ({
+                  user_id: c.user_id,
+                  completed_at: c.completed_at,
+                }))}
+              />
+            ) : null
+          }
+        />
       </section>
 
       <section className="px-5 pt-8">

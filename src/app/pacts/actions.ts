@@ -371,6 +371,55 @@ export async function toggleNudge(
   return { ok: true, nudged: true };
 }
 
+// Log a check-in for a past day (or week, for weekly pacts). The grid view
+// surfaces this — tapping an empty cell in your own row inserts a completion
+// dated to that period. Always writes the current user's own row (the
+// set_completion_user_id trigger fills user_id from auth.uid()).
+export async function backdateCompletion(
+  pactId: string,
+  dateISO: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!pactId || !dateISO) return { ok: false, error: "Missing args" };
+
+  // Accept YYYY-MM-DD; sanity-check shape.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
+    return { ok: false, error: "Invalid date" };
+  }
+
+  const supabase = await createClient();
+
+  const { data: challenge, error: chErr } = await supabase
+    .from("challenges")
+    .select("id, group_id, frequency, start_date")
+    .eq("group_id", pactId)
+    .eq("archived", false)
+    .maybeSingle();
+
+  if (chErr) return { ok: false, error: chErr.message };
+  if (!challenge) return { ok: false, error: "No active challenge" };
+
+  const target = new Date(`${dateISO}T12:00:00Z`);
+  const today = new Date();
+  today.setUTCHours(23, 59, 59, 999);
+  const start = new Date(`${challenge.start_date}T00:00:00Z`);
+
+  if (target > today) return { ok: false, error: "Can't log a future day" };
+  if (target < start) return { ok: false, error: "Before the pact started" };
+
+  const { error } = await supabase
+    .from("completions")
+    .insert({
+      challenge_id: challenge.id,
+      completed_at: target.toISOString(),
+    });
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/pacts/${pactId}`);
+  revalidatePath("/feed");
+  return { ok: true };
+}
+
 // Client-callable variant of saveCompletionNote — no redirect, used by the
 // Feed today-band's post-log note sheet so the user stays on /feed.
 export async function saveNoteInline(
