@@ -44,13 +44,13 @@ export function PactCircle({
         }
         className="press"
         style={{
-          width: 104,
-          height: 104,
+          width: 84,
+          height: 84,
           borderRadius: "50%",
           background: done ? "var(--accent)" : "var(--card)",
           border: done ? "none" : "1.5px solid var(--line-strong)",
           boxShadow: done
-            ? "0 10px 30px rgba(216, 98, 58, 0.4)"
+            ? "0 8px 24px rgba(216, 98, 58, 0.38)"
             : "0 2px 0 rgba(42, 31, 24, 0.06)",
           display: "flex",
           alignItems: "center",
@@ -61,8 +61,8 @@ export function PactCircle({
       >
         {done ? (
           <svg
-            width="48"
-            height="48"
+            width="38"
+            height="38"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -74,13 +74,13 @@ export function PactCircle({
             <path d="M5 12.5l4.5 4.5L19 7" />
           </svg>
         ) : icon ? (
-          <span aria-hidden style={{ fontSize: 46, lineHeight: 1 }}>
+          <span aria-hidden style={{ fontSize: 38, lineHeight: 1 }}>
             {icon}
           </span>
         ) : (
           <svg
-            width="48"
-            height="48"
+            width="38"
+            height="38"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
