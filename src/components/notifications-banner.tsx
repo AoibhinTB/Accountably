@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { subscribeToPush } from "@/lib/push/client";
 
 const STORAGE_KEY = "ay.push.banner.dismissed";
@@ -23,7 +23,6 @@ const isIOS = () =>
 // in that case we mark the banner dismissed so we never re-ask in-app either.
 export function NotificationsBanner() {
   const [show, setShow] = useState(false);
-  const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     (async () => {
@@ -70,15 +69,13 @@ export function NotificationsBanner() {
     setShow(false);
   };
 
+  // Once the user has expressed any intent (yes or no), hide the banner and
+  // mark it dismissed. The browser permission popup appears on top of the
+  // (now-hidden) banner; if they later want to retry, they go via /you.
   const turnOn = () => {
-    startTransition(async () => {
-      const result = await subscribeToPush();
-      if (result.ok || result.permissionDenied) {
-        persistDismiss();
-        setShow(false);
-      }
-      // Other failures (e.g. network) leave the banner up for a retry.
-    });
+    persistDismiss();
+    setShow(false);
+    void subscribeToPush();
   };
 
   return (
@@ -113,7 +110,6 @@ export function NotificationsBanner() {
         <button
           type="button"
           onClick={turnOn}
-          disabled={pending}
           className="press"
           style={{
             flex: 1,
@@ -126,15 +122,13 @@ export function NotificationsBanner() {
             fontSize: 11,
             letterSpacing: "0.06em",
             textTransform: "uppercase",
-            opacity: pending ? 0.6 : 1,
           }}
         >
-          {pending ? "…" : "turn on"}
+          turn on
         </button>
         <button
           type="button"
           onClick={dismiss}
-          disabled={pending}
           className="press"
           style={{
             minHeight: 36,
