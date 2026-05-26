@@ -10,6 +10,7 @@ import {
   timeAgo,
 } from "@/lib/period";
 import { TodayBand, type TodayPact } from "./today-band";
+import { NotificationsBanner } from "@/components/notifications-banner";
 
 type Frequency = "daily" | "weekly";
 
@@ -367,6 +368,8 @@ export default async function FeedPage() {
         </div>
         <Squiggle width={84} className="mt-1" />
       </header>
+
+      <NotificationsBanner />
 
       <TodayBand pacts={todayPacts} />
 

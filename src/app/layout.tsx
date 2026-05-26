@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
 import { PWAInstallBanner } from "@/components/pwa-install-banner";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import "./globals.css";
 
 const display = Instrument_Serif({
@@ -61,6 +62,7 @@ export default function RootLayout({
       className={`${display.variable} ${body.variable} ${statMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <ServiceWorkerRegister />
         <PWAInstallBanner />
         {children}
         <BottomTabBar />

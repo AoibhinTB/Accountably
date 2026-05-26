@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyCompletion, notifyNudge } from "@/lib/push/notify";
 import { startOfPeriodUTC, type Frequency } from "@/lib/period";
 
 const isFrequency = (v: string): v is Frequency => v === "daily" || v === "weekly";
@@ -297,6 +299,7 @@ export async function toggleQuickLog(
 
   revalidatePath("/feed");
   revalidatePath(`/pacts/${pactId}`);
+  after(() => notifyCompletion({ actorUserId: user.id, pactId }));
   return { ok: true, done: true, completionId: inserted.id };
 }
 
@@ -368,6 +371,15 @@ export async function toggleNudge(
 
   revalidatePath(`/pacts/${pactId}`);
   revalidatePath("/feed");
+  after(() =>
+    notifyNudge({
+      fromUserId: user.id,
+      toUserId,
+      pactId,
+      challengeId: challenge.id,
+      periodStartKey,
+    }),
+  );
   return { ok: true, nudged: true };
 }
 
@@ -445,6 +457,7 @@ export async function togglePeriodCompletion(
 
   revalidatePath(`/pacts/${pactId}`);
   revalidatePath("/feed");
+  after(() => notifyCompletion({ actorUserId: user.id, pactId }));
   return { ok: true, done: true };
 }
 

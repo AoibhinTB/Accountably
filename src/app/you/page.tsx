@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
+import { NotificationsToggle } from "@/components/notifications-toggle";
 import { Avatar } from "@/components/ui/avatar";
 import { Squiggle } from "@/components/ui/squiggle";
 import { currentStreak, type Frequency } from "@/lib/period";
@@ -286,7 +287,8 @@ export default async function YouPage() {
             borderRadius: "var(--radius)",
           }}
         >
-          {["notifications", "privacy", "about accountably"].map((s, i, arr) => (
+          <NotificationsToggle />
+          {["privacy", "about accountably"].map((s, i, arr) => (
             <li
               key={s}
               className="flex items-center justify-between p-4"
