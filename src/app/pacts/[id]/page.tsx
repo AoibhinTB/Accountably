@@ -139,20 +139,18 @@ export default async function PactPage({
     : null;
 
   type NudgeRow = {
-    from_user_id: string;
     to_user_id: string;
-    profiles: { display_name: string } | null;
+    created_at: string;
   };
 
   const nudgesPromise =
     challenge && periodStartKey
       ? supabase
           .from("nudges")
-          .select(
-            "from_user_id, to_user_id, profiles!nudges_from_user_id_fkey(display_name)",
-          )
+          .select("to_user_id, created_at")
           .eq("challenge_id", challenge.id)
           .eq("period_start", periodStartKey)
+          .order("created_at", { ascending: false })
           .returns<NudgeRow[]>()
       : Promise.resolve({ data: [] as NudgeRow[] });
 
@@ -188,14 +186,15 @@ export default async function PactPage({
   });
   const periodDoneCount = memberStatus.filter((s) => s.completion).length;
 
-  // Who have I nudged this period? Who has nudged me?
+  // Latest nudge per recipient (anyone → recipient) for this period. The
+  // nudges query is sorted desc, so the first row we see for a recipient is
+  // their most-recent. Used to render "just nudged Xm ago" on every member's
+  // row — visible to the whole pact, not just the recipient.
   const currentUserId = userData.user?.id ?? null;
-  const nudgesSentByMe = new Set<string>();
-  const nudgersOfMe: string[] = [];
+  const latestNudgeByRecipient = new Map<string, string>();
   for (const n of nudges ?? []) {
-    if (n.from_user_id === currentUserId) nudgesSentByMe.add(n.to_user_id);
-    if (n.to_user_id === currentUserId) {
-      nudgersOfMe.push(n.profiles?.display_name ?? "Someone");
+    if (!latestNudgeByRecipient.has(n.to_user_id)) {
+      latestNudgeByRecipient.set(n.to_user_id, n.created_at);
     }
   }
 
@@ -367,6 +366,7 @@ export default async function PactPage({
             {memberStatus.map(({ member: m, completion }, i, arr) => {
               const isYou = m.user_id === userData.user?.id;
               const name = m.profiles?.display_name ?? "unknown";
+              const latestNudge = latestNudgeByRecipient.get(m.user_id);
               return (
                 <li
                   key={m.user_id}
@@ -389,21 +389,13 @@ export default async function PactPage({
                       <div className="label mt-0.5">
                         {completion
                           ? `checked in · ${timeAgo(completion.completed_at)}`
-                          : isYou && nudgersOfMe.length > 0
-                            ? `nudged by ${nudgersOfMe[0]}${
-                                nudgersOfMe.length > 1
-                                  ? ` +${nudgersOfMe.length - 1}`
-                                  : ""
-                              }`
+                          : latestNudge
+                            ? `just nudged · ${timeAgo(latestNudge)}`
                             : "still pending"}
                       </div>
                     </div>
                     {!completion && !isYou && (
-                      <NudgeButton
-                        pactId={pact.id}
-                        toUserId={m.user_id}
-                        alreadyNudged={nudgesSentByMe.has(m.user_id)}
-                      />
+                      <NudgeButton pactId={pact.id} toUserId={m.user_id} />
                     )}
                     {completion ? (
                       <svg

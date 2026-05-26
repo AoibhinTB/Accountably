@@ -303,16 +303,18 @@ export async function toggleQuickLog(
   return { ok: true, done: true, completionId: inserted.id };
 }
 
-// Toggle a nudge to a member for the current period. If an existing nudge
-// (this sender → that recipient → this challenge → this period) exists, it
-// is deleted (un-nudge). Otherwise inserted. The recipient sees the badge
-// in the app until period end or until the sender retracts.
-export async function toggleNudge(
+// Send a nudge to a member. Each tap inserts a new row (the table no longer
+// has a per-period unique constraint), so the most-recent created_at acts
+// as "last nudged". A 5-minute cooldown per (sender → recipient → challenge)
+// keeps things from turning into spam.
+const NUDGE_COOLDOWN_MS = 5 * 60 * 1000;
+
+export async function sendNudge(
   pactId: string,
   toUserId: string,
 ): Promise<
-  | { ok: true; nudged: boolean }
-  | { ok: false; error: string }
+  | { ok: true }
+  | { ok: false; error: string; cooldown?: boolean }
 > {
   if (!pactId || !toUserId) return { ok: false, error: "Missing args" };
 
@@ -340,22 +342,23 @@ export async function toggleNudge(
     .toISOString()
     .slice(0, 10);
 
-  // Delete-if-exists; on no rows deleted, insert. Single round-trip would
-  // be nice (UPSERT with negative), but two simple queries keep things clear.
-  const { data: deleted } = await supabase
+  const cooldownCutoff = new Date(Date.now() - NUDGE_COOLDOWN_MS).toISOString();
+  const { data: recent } = await supabase
     .from("nudges")
-    .delete()
+    .select("id")
     .eq("from_user_id", user.id)
     .eq("to_user_id", toUserId)
     .eq("challenge_id", challenge.id)
-    .eq("period_start", periodStartKey)
-    .select("id")
+    .gte("created_at", cooldownCutoff)
+    .limit(1)
     .maybeSingle();
 
-  if (deleted) {
-    revalidatePath(`/pacts/${pactId}`);
-    revalidatePath("/feed");
-    return { ok: true, nudged: false };
+  if (recent) {
+    return {
+      ok: false,
+      error: "wait a few minutes before nudging again",
+      cooldown: true,
+    };
   }
 
   const { error } = await supabase.from("nudges").insert({
@@ -364,10 +367,7 @@ export async function toggleNudge(
     period_start: periodStartKey,
   });
 
-  // 23505 = unique_violation — race with another insert. Treat as success.
-  if (error && error.code !== "23505") {
-    return { ok: false, error: error.message };
-  }
+  if (error) return { ok: false, error: error.message };
 
   revalidatePath(`/pacts/${pactId}`);
   revalidatePath("/feed");
@@ -380,7 +380,7 @@ export async function toggleNudge(
       periodStartKey,
     }),
   );
-  return { ok: true, nudged: true };
+  return { ok: true };
 }
 
 // Toggle a check-in for any day (today or past). If the user has any

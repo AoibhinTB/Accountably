@@ -112,12 +112,15 @@ export default async function FeedPage() {
   const lookback30 = new Date(now);
   lookback30.setUTCDate(lookback30.getUTCDate() - 30);
 
-  type NudgeRow = { challenge_id: string };
+  type NudgeRow = {
+    challenge_id: string;
+    period_start: string;
+    created_at: string;
+  };
 
-  // Nudges I've received that are still in their period (i.e. for any pact
-  // where I'm a member and the period_start key matches today's daily or
-  // this-week's start). We just check >= today and >= weekStart respectively,
-  // so a single >= today-2-weeks lookback covers both.
+  // Nudges I've received in the last two weeks. We narrow to current-period
+  // per challenge in JS below — daily vs weekly periods differ so a single
+  // SQL filter would be awkward.
   const twoWeeksAgo = new Date(now);
   twoWeeksAgo.setUTCDate(twoWeeksAgo.getUTCDate() - 14);
 
@@ -147,17 +150,31 @@ export default async function FeedPage() {
     challengeIds.length
       ? supabase
           .from("nudges")
-          .select("challenge_id")
+          .select("challenge_id, period_start, created_at")
           .eq("to_user_id", user.id)
           .in("challenge_id", challengeIds)
           .gte("period_start", twoWeeksAgo.toISOString().slice(0, 10))
+          .order("created_at", { ascending: false })
           .returns<NudgeRow[]>()
       : Promise.resolve({ data: [] as NudgeRow[] }),
   ]);
 
-  const nudgedChallengeIds = new Set(
-    (myNudges ?? []).map((n) => n.challenge_id),
-  );
+  // For each challenge, the most-recent nudge to me whose period_start matches
+  // the challenge's current period. Map value is the ISO created_at.
+  const latestNudgeByChallenge = new Map<string, string>();
+  for (const p of myPacts) {
+    const periodKey = startOfPeriodUTC(p.challenge.frequency, now)
+      .toISOString()
+      .slice(0, 10);
+    for (const n of myNudges ?? []) {
+      if (n.challenge_id !== p.challenge.id) continue;
+      if (n.period_start !== periodKey) continue;
+      if (!latestNudgeByChallenge.has(n.challenge_id)) {
+        latestNudgeByChallenge.set(n.challenge_id, n.created_at);
+      }
+      break;
+    }
+  }
 
   const membersByGroup = new Map<string, MemberRow[]>();
   for (const m of allMembers ?? []) {
@@ -197,13 +214,14 @@ export default async function FeedPage() {
           c.user_id === user.id &&
           new Date(c.completed_at) >= threshold,
       );
+      const nudgedAt = latestNudgeByChallenge.get(p.challenge.id) ?? null;
       return {
         id: p.id,
         name: p.name,
         icon: p.icon,
         frequency: p.challenge.frequency,
         doneThisPeriod: done,
-        nudged: !done && nudgedChallengeIds.has(p.challenge.id),
+        nudgedAt: !done ? nudgedAt : null,
       };
     });
 

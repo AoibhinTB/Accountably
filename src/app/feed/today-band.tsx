@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { saveNoteInline, toggleQuickLog } from "@/app/pacts/actions";
+import { timeAgo } from "@/lib/period";
 
 export type TodayPact = {
   id: string;
@@ -10,7 +11,9 @@ export type TodayPact = {
   icon: string | null;
   frequency: "daily" | "weekly";
   doneThisPeriod: boolean;
-  nudged: boolean;
+  // ISO timestamp of the most recent nudge I've received in this period for
+  // this pact's challenge, or null. Cleared when I check in.
+  nudgedAt: string | null;
 };
 
 type NotePrompt = {
@@ -19,11 +22,29 @@ type NotePrompt = {
   completionId: string;
 };
 
-const PeriodPill = ({ frequency }: { frequency: "daily" | "weekly" }) => (
-  <span className="label" style={{ fontSize: 9 }}>
-    {frequency === "daily" ? "today" : "this week"}
-  </span>
-);
+const PeriodPill = ({
+  frequency,
+  nudgedAt,
+}: {
+  frequency: "daily" | "weekly";
+  nudgedAt: string | null;
+}) => {
+  if (nudgedAt) {
+    return (
+      <span
+        className="label"
+        style={{ fontSize: 9, color: "var(--accent)", fontWeight: 600 }}
+      >
+        nudged · {timeAgo(nudgedAt)}
+      </span>
+    );
+  }
+  return (
+    <span className="label" style={{ fontSize: 9 }}>
+      {frequency === "daily" ? "today" : "this week"}
+    </span>
+  );
+};
 
 export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
   const [optimistic, toggleOptimistic] = useOptimistic<TodayPact[], string>(
@@ -86,7 +107,7 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
                 <CompletionDisk
                   done={p.doneThisPeriod}
                   icon={p.icon}
-                  nudged={p.nudged}
+                  nudged={!!p.nudgedAt}
                 />
                 <div
                   className="w-full truncate text-center"
@@ -100,7 +121,7 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
                 >
                   {p.name}
                 </div>
-                <PeriodPill frequency={p.frequency} />
+                <PeriodPill frequency={p.frequency} nudgedAt={p.nudgedAt} />
               </button>
             </li>
           ))}
