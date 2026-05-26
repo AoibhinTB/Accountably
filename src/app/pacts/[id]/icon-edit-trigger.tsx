@@ -1,23 +1,20 @@
 "use client";
 
 import { ReactNode } from "react";
+import { OPEN_EDIT_PACT_EVENT } from "./edit-pact-dialog";
 
-// Wraps the pact-hero icon so tapping it opens the `edit pact` disclosure
-// and scrolls to it. The disclosure element is found by its DOM id.
+// Wraps the pact-hero icon so tapping it opens the edit dialog. The dialog
+// itself lives elsewhere on the page and listens for OPEN_EDIT_PACT_EVENT
+// on window, so this trigger doesn't need to know about its state.
 export function IconEditTrigger({
-  targetId,
   children,
   ariaLabel,
 }: {
-  targetId: string;
   children: ReactNode;
   ariaLabel: string;
 }) {
   const open = () => {
-    const el = document.getElementById(targetId) as HTMLDetailsElement | null;
-    if (!el) return;
-    el.open = true;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.dispatchEvent(new CustomEvent(OPEN_EDIT_PACT_EVENT));
   };
   return (
     <button

@@ -2,12 +2,9 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ConfirmForm } from "@/components/confirm-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
 import { Chevron } from "@/components/ui/chevron";
-import { HowOftenPicker } from "@/components/ui/how-often-picker";
-import { IconPicker } from "@/components/ui/icon-picker";
 import {
   currentGroupStreak,
   formatDate,
@@ -15,14 +12,11 @@ import {
   timeAgo,
 } from "@/lib/period";
 import { CheckInGrid } from "./check-in-grid";
+import { EditPactDialog } from "./edit-pact-dialog";
 import { IconEditTrigger } from "./icon-edit-trigger";
 import { NudgeButton } from "./nudge-button";
 import { PactCircle } from "./pact-circle";
-import {
-  deletePact,
-  saveCompletionNote,
-  updatePact,
-} from "../actions";
+import { saveCompletionNote } from "../actions";
 import { InviteLink } from "./invite-link";
 
 type Member = {
@@ -246,7 +240,24 @@ export default async function PactPage({
           position: "relative",
         }}
       >
-        <IconEditTrigger targetId="edit-pact" ariaLabel="Change pact icon">
+        {challenge && (
+          <div style={{ position: "absolute", top: 10, right: 10 }}>
+            <EditPactDialog
+              pactId={pact.id}
+              pactName={pact.name}
+              pactIcon={pact.icon}
+              challenge={{
+                description: challenge.description,
+                frequency: challenge.frequency,
+                days_of_week: challenge.days_of_week,
+                start_date: challenge.start_date,
+                end_date: challenge.end_date,
+              }}
+              isCreator={isCreator}
+            />
+          </div>
+        )}
+        <IconEditTrigger ariaLabel="Change pact icon">
           <div
             className="-rotate-2"
             style={{
@@ -663,159 +674,6 @@ export default async function PactPage({
         </details>
       </section>
 
-      {challenge && (
-        <section className="px-5 pt-5">
-          <details className="group" id="edit-pact">
-            <summary
-              className="press inline-flex min-h-12 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
-              style={{
-                background: "var(--card)",
-                border: "1px solid var(--line)",
-                borderRadius: "var(--radius)",
-                padding: "0 18px",
-                fontFamily: "var(--font-body)",
-                fontWeight: 500,
-                color: "var(--ink)",
-              }}
-            >
-              <span>edit pact</span>
-              <Chevron
-                direction="down"
-                size={14}
-                strokeWidth={2}
-                className="transition-transform group-open:rotate-180"
-                style={{ color: "var(--mute)" }}
-              />
-            </summary>
-            <div
-              className="mt-3 p-4"
-              style={{
-                background: "var(--card)",
-                border: "1px solid var(--line)",
-                borderRadius: "var(--radius)",
-              }}
-            >
-              <form action={updatePact} className="mb-5 flex flex-col gap-3">
-                <input type="hidden" name="pact_id" value={pact.id} />
-                <label className="block">
-                  <span className="label">Name</span>
-                  <input
-                    name="name"
-                    type="text"
-                    required
-                    maxLength={80}
-                    defaultValue={pact.name}
-                    className="mt-1.5 w-full outline-none"
-                    style={inputStyle}
-                  />
-                </label>
-                <IconPicker defaultValue={pact.icon} />
-                <label className="block">
-                  <span className="label">Description (optional)</span>
-                  <textarea
-                    name="description"
-                    rows={2}
-                    maxLength={500}
-                    defaultValue={challenge.description ?? ""}
-                    className="mt-1.5 w-full resize-none outline-none"
-                    style={{
-                      ...inputStyle,
-                      height: "auto",
-                      paddingTop: 12,
-                      paddingBottom: 12,
-                      fontFamily: "var(--font-display)",
-                      fontStyle: "italic",
-                    }}
-                  />
-                </label>
-                <HowOftenPicker
-                  defaultFrequency={challenge.frequency}
-                  defaultDays={
-                    challenge.days_of_week ?? [0, 1, 2, 3, 4, 5, 6]
-                  }
-                />
-
-                <details className="group">
-                  <summary
-                    className="press flex min-h-11 cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden"
-                    style={{
-                      padding: "0 14px",
-                      background: "var(--card-inset)",
-                      border: "1px solid var(--line)",
-                      borderRadius: "var(--radius)",
-                      color: "var(--ink-soft)",
-                      fontSize: 14,
-                    }}
-                  >
-                    <span>custom dates</span>
-                    <Chevron
-                      direction="down"
-                      size={14}
-                      strokeWidth={2}
-                      className="transition-transform group-open:rotate-180"
-                      style={{ color: "var(--mute)" }}
-                    />
-                  </summary>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <label className="block">
-                      <span className="label">start date</span>
-                      <input
-                        name="start_date"
-                        type="date"
-                        defaultValue={challenge.start_date}
-                        className="mt-1.5 w-full outline-none"
-                        style={dateInputStyle}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="label">end date</span>
-                      <input
-                        name="end_date"
-                        type="date"
-                        defaultValue={challenge.end_date ?? ""}
-                        className="mt-1.5 w-full outline-none"
-                        style={dateInputStyle}
-                      />
-                    </label>
-                  </div>
-                </details>
-                <SubmitButton pendingLabel="saving…" style={primaryStyle}>
-                  save changes
-                </SubmitButton>
-              </form>
-
-              {isCreator && (
-                <div
-                  className="p-3"
-                  style={{
-                    borderRadius: "var(--radius)",
-                    border: "1px solid rgba(156, 31, 31, 0.25)",
-                    background: "rgba(216, 98, 58, 0.06)",
-                  }}
-                >
-                  <p
-                    className="mb-3 text-xs"
-                    style={{ color: "#7A1F1F", lineHeight: 1.4 }}
-                  >
-                    deleting this pact permanently removes all completions and
-                    reactions. this can&apos;t be undone. only the creator can
-                    delete.
-                  </p>
-                  <ConfirmForm
-                    action={deletePact}
-                    message={`Delete "${pact.name}"? All completions and reactions in this pact will be permanently deleted. This cannot be undone.`}
-                  >
-                    <input type="hidden" name="pact_id" value={pact.id} />
-                    <SubmitButton pendingLabel="deleting…" style={dangerStyle}>
-                      delete pact
-                    </SubmitButton>
-                  </ConfirmForm>
-                </div>
-              )}
-            </div>
-          </details>
-        </section>
-      )}
     </main>
   );
 }
@@ -831,18 +689,6 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "var(--font-body)",
 };
 
-const dateInputStyle: React.CSSProperties = {
-  height: 44,
-  background: "var(--card-inset)",
-  border: "1.5px solid var(--line)",
-  borderRadius: "var(--radius-sm)",
-  padding: "0 12px",
-  fontSize: 14,
-  color: "var(--ink)",
-  fontFamily: "var(--font-body)",
-  textAlign: "left",
-};
-
 const primaryStyle: React.CSSProperties = {
   minHeight: 52,
   background: "var(--accent)",
@@ -853,16 +699,4 @@ const primaryStyle: React.CSSProperties = {
   fontWeight: 600,
   fontSize: 16,
   padding: "0 22px",
-};
-
-const dangerStyle: React.CSSProperties = {
-  minHeight: 44,
-  background: "var(--card)",
-  color: "#9C1F1F",
-  borderRadius: "var(--radius)",
-  border: "1.5px solid rgba(156, 31, 31, 0.4)",
-  fontFamily: "var(--font-body)",
-  fontWeight: 600,
-  fontSize: 14,
-  padding: "0 18px",
 };
