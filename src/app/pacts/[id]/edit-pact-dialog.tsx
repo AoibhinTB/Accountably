@@ -64,24 +64,23 @@ export function EditPactDialog({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="press inline-flex items-center gap-1.5"
+        className="press"
         aria-label="Edit pact"
         style={{
-          padding: "6px 12px",
-          borderRadius: 999,
+          width: 30,
+          height: 30,
+          borderRadius: "50%",
           background: "var(--card)",
           border: "1px solid var(--line-strong)",
           color: "var(--ink-soft)",
-          fontFamily: "var(--font-stat-mono)",
-          fontSize: 11,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          fontWeight: 500,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <svg
-          width="12"
-          height="12"
+          width="13"
+          height="13"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -93,7 +92,6 @@ export function EditPactDialog({
           <path d="M12 20h9" />
           <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
         </svg>
-        <span>edit</span>
       </button>
 
       {open && (
@@ -237,8 +235,8 @@ export function EditPactDialog({
                   />
                 </summary>
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className="label">start date</span>
+                  <label className="flex flex-col">
+                    <span className="label block">start date</span>
                     <input
                       name="start_date"
                       type="date"
@@ -247,8 +245,8 @@ export function EditPactDialog({
                       style={dateInputStyle}
                     />
                   </label>
-                  <label className="block">
-                    <span className="label">end date</span>
+                  <label className="flex flex-col">
+                    <span className="label block">end date</span>
                     <input
                       name="end_date"
                       type="date"
