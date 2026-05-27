@@ -1,0 +1,199 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { updateNotificationPrefs } from "../notifications-actions";
+
+type Initial = {
+  notif_nudges?: boolean | null;
+  notif_checkins?: boolean | null;
+  reminder_time?: string | null;
+  reminder_timezone?: string | null;
+};
+
+// Postgres `time` comes back as "HH:MM:SS". <input type="time"> wants "HH:MM".
+function trimToHHMM(t: string | null | undefined): string {
+  if (!t) return "20:00";
+  return t.slice(0, 5);
+}
+
+const detectedTimezone = () => {
+  if (typeof window === "undefined") return "UTC";
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
+export function PrefsForm({ initial }: { initial: Initial }) {
+  const [nudges, setNudges] = useState(initial.notif_nudges ?? true);
+  const [checkins, setCheckins] = useState(initial.notif_checkins ?? true);
+  const [reminderOn, setReminderOn] = useState(!!initial.reminder_time);
+  const [reminderTime, setReminderTime] = useState(trimToHHMM(initial.reminder_time));
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  const save = (patch: {
+    notif_nudges?: boolean;
+    notif_checkins?: boolean;
+    reminder_time?: string | null;
+    reminder_timezone?: string | null;
+  }) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await updateNotificationPrefs(patch);
+      if (!result.ok) setError(result.error);
+    });
+  };
+
+  const toggleNudges = () => {
+    const next = !nudges;
+    setNudges(next);
+    save({ notif_nudges: next });
+  };
+
+  const toggleCheckins = () => {
+    const next = !checkins;
+    setCheckins(next);
+    save({ notif_checkins: next });
+  };
+
+  const toggleReminder = () => {
+    const next = !reminderOn;
+    setReminderOn(next);
+    save({
+      reminder_time: next ? `${reminderTime}:00` : null,
+      reminder_timezone: next ? detectedTimezone() : null,
+    });
+  };
+
+  const changeTime = (val: string) => {
+    setReminderTime(val);
+    save({
+      reminder_time: `${val}:00`,
+      reminder_timezone: detectedTimezone(),
+    });
+  };
+
+  return (
+    <>
+      <ul
+        className="overflow-hidden"
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius)",
+        }}
+      >
+        <Row
+          label="nudges"
+          hint="when someone nudges you"
+          divider
+        >
+          <Switch on={nudges} onClick={toggleNudges} />
+        </Row>
+        <Row
+          label="check-ins"
+          hint="when someone in your pact checks in"
+          divider
+        >
+          <Switch on={checkins} onClick={toggleCheckins} />
+        </Row>
+        <Row
+          label="daily reminder"
+          hint="if you have not checked in by your time"
+          divider={reminderOn}
+        >
+          <Switch on={reminderOn} onClick={toggleReminder} />
+        </Row>
+        {reminderOn && (
+          <Row label="remind me at" hint={detectedTimezone()}>
+            <input
+              type="time"
+              value={reminderTime}
+              onChange={(e) => changeTime(e.target.value)}
+              style={{
+                height: 36,
+                background: "var(--card-inset)",
+                border: "1.5px solid var(--line)",
+                borderRadius: "var(--radius-sm)",
+                padding: "0 12px",
+                fontSize: 14,
+                color: "var(--ink)",
+                fontFamily: "var(--font-body)",
+              }}
+            />
+          </Row>
+        )}
+      </ul>
+      {error && (
+        <p
+          className="mt-3 text-xs"
+          style={{ color: "var(--accent)", textAlign: "center" }}
+        >
+          {error}
+        </p>
+      )}
+    </>
+  );
+}
+
+function Row({
+  label,
+  hint,
+  divider,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  divider?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li
+      className="flex items-center justify-between p-4 gap-3"
+      style={{
+        borderBottom: divider ? "1px solid var(--line)" : "none",
+        color: "var(--ink)",
+      }}
+    >
+      <div className="min-w-0">
+        <div style={{ fontSize: 15 }}>{label}</div>
+        {hint && (
+          <div
+            className="label mt-0.5"
+            style={{ fontSize: 10, color: "var(--mute)" }}
+          >
+            {hint}
+          </div>
+        )}
+      </div>
+      {children}
+    </li>
+  );
+}
+
+function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className="press"
+      style={{
+        minHeight: 32,
+        padding: "0 14px",
+        borderRadius: 999,
+        background: on ? "var(--accent)" : "transparent",
+        color: on ? "var(--card)" : "var(--ink-soft)",
+        border: on ? "1px solid var(--accent)" : "1.5px dashed var(--line-strong)",
+        fontFamily: "var(--font-stat-mono)",
+        fontSize: 11,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+      }}
+    >
+      {on ? "on" : "off"}
+    </button>
+  );
+}

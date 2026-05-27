@@ -12,14 +12,22 @@ export async function notifyNudge(args: {
   periodStartKey: string;
 }): Promise<void> {
   const supabase = await createClient();
-  const [{ data: sender }, { data: group }] = await Promise.all([
+  const [{ data: sender }, { data: group }, { data: recipient }] = await Promise.all([
     supabase
       .from("profiles")
       .select("display_name")
       .eq("id", args.fromUserId)
       .maybeSingle(),
     supabase.from("groups").select("name").eq("id", args.pactId).maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("notif_nudges")
+      .eq("id", args.toUserId)
+      .maybeSingle(),
   ]);
+
+  // Recipient has nudge pushes turned off — drop the send silently.
+  if (recipient && recipient.notif_nudges === false) return;
 
   const senderName = sender?.display_name?.trim() || "Someone";
   const pactName = group?.name?.trim();
@@ -54,9 +62,21 @@ export async function notifyCompletion(args: {
       .eq("group_id", args.pactId),
   ]);
 
-  const recipientIds = (members ?? [])
+  const candidateIds = (members ?? [])
     .map((m) => m.user_id)
     .filter((id) => id && id !== args.actorUserId);
+  if (candidateIds.length === 0) return;
+
+  // Filter to recipients who actually want check-in pushes. Missing pref row
+  // would already block the join above, so a present row with notif_checkins
+  // false is the only opt-out path we need to handle.
+  const { data: prefs } = await supabase
+    .from("profiles")
+    .select("id, notif_checkins")
+    .in("id", candidateIds);
+  const recipientIds = (prefs ?? [])
+    .filter((p) => p.notif_checkins !== false)
+    .map((p) => p.id);
   if (recipientIds.length === 0) return;
 
   const actorName = actor?.display_name?.trim() || "Someone";
