@@ -173,17 +173,9 @@ export default async function PactPage({
         ) ?? null
       : null;
 
-  const memberStatus = (members ?? []).map((m) => {
-    const completion =
-      (periodCompletions ?? []).find((c) => c.user_id === m.user_id) ?? null;
-    return { member: m, completion };
-  });
-  const periodDoneCount = memberStatus.filter((s) => s.completion).length;
-
   // Latest nudge per recipient (anyone → recipient) for this period. The
   // nudges query is sorted desc, so the first row we see for a recipient is
-  // their most-recent. Used to render "just nudged Xm ago" on every member's
-  // row — visible to the whole pact, not just the recipient.
+  // their most-recent.
   const currentUserId = userData.user?.id ?? null;
   const latestNudgeByRecipient = new Map<string, string>();
   for (const n of nudges ?? []) {
@@ -191,6 +183,19 @@ export default async function PactPage({
       latestNudgeByRecipient.set(n.to_user_id, n.created_at);
     }
   }
+
+  // Members who haven't checked in this period, excluding the current user.
+  // Drives the "still pending" nudge list under the grid.
+  const pendingToNudge = (members ?? [])
+    .filter((m) => {
+      if (m.user_id === currentUserId) return false;
+      return !(periodCompletions ?? []).some((c) => c.user_id === m.user_id);
+    })
+    .map((m) => ({
+      user_id: m.user_id,
+      name: m.profiles?.display_name ?? "unknown",
+      latestNudge: latestNudgeByRecipient.get(m.user_id) ?? null,
+    }));
 
   // Group streak — consecutive periods where every expected member checked in.
   const groupStreak = challenge
@@ -352,172 +357,82 @@ export default async function PactPage({
         </section>
       )}
 
-      {challenge && memberStatus.length > 0 && (
-        <section className="px-5 pt-6">
-          <div className="mb-2 flex items-baseline justify-between">
-            <span className="label">{periodLabel}</span>
-            <span
+      {challenge && myCurrentCompletion && (
+        <section className="px-5 pt-3 flex justify-center">
+          <details className="group">
+            <summary
+              className="press inline-flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden"
               style={{
+                padding: "6px 12px",
+                borderRadius: 999,
+                background: "transparent",
+                border: "1px solid var(--line-strong)",
+                color: "var(--ink-soft)",
                 fontFamily: "var(--font-stat-mono)",
-                fontSize: 12,
-                color: "var(--mute)",
+                fontSize: 11,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                fontWeight: 500,
               }}
             >
-              {periodDoneCount}/{memberStatus.length} checked in
-            </span>
-          </div>
-          <ul
-            className="overflow-hidden"
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius)",
-            }}
-          >
-            {memberStatus.map(({ member: m, completion }, i, arr) => {
-              const isYou = m.user_id === userData.user?.id;
-              const name = m.profiles?.display_name ?? "unknown";
-              const latestNudge = latestNudgeByRecipient.get(m.user_id);
-              return (
-                <li
-                  key={m.user_id}
-                  style={{
-                    borderBottom:
-                      i < arr.length - 1 ? "1px solid var(--line)" : "none",
-                  }}
-                >
-                  <div className="flex items-center gap-3 p-3">
-                    <Avatar name={name} size={36} />
-                    <div className="min-w-0 flex-1">
-                      <div style={{ fontWeight: 500, fontSize: 15 }}>
-                        {name}
-                        {isYou && (
-                          <span style={{ color: "var(--mute)", fontWeight: 400 }}>
-                            {" · you"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="label mt-0.5">
-                        {completion
-                          ? `checked in · ${timeAgo(completion.completed_at)}`
-                          : latestNudge
-                            ? `just nudged · ${timeAgo(latestNudge)}`
-                            : "still pending"}
-                      </div>
-                    </div>
-                    {!completion && !isYou && (
-                      <NudgeButton pactId={pact.id} toUserId={m.user_id} />
-                    )}
-                    {completion ? (
-                      <svg
-                        width="22"
-                        height="22"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden
-                        style={{ color: "var(--accent)", flexShrink: 0 }}
-                      >
-                        <path d="M5 12.5l4.5 4.5L19 7" />
-                      </svg>
-                    ) : (
-                      <div
-                        aria-hidden
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: "50%",
-                          border: "1.5px dashed var(--line-strong)",
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
-                  </div>
-
-                </li>
-              );
-            })}
-          </ul>
-
-          {myCurrentCompletion && (
-            <details className="group mt-3">
-              <summary
-                className="press inline-flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden"
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>
+                {myCurrentCompletion.note ? "edit note" : "add a note"}
+              </span>
+            </summary>
+            <form
+              action={saveCompletionNote}
+              className="mt-2.5 flex flex-col gap-2.5"
+            >
+              <input type="hidden" name="pact_id" value={pact.id} />
+              <input
+                type="hidden"
+                name="completion_id"
+                value={myCurrentCompletion.id}
+              />
+              <textarea
+                name="note"
+                rows={2}
+                maxLength={500}
+                defaultValue={myCurrentCompletion.note ?? ""}
+                placeholder="how did it go?"
+                className="w-full resize-none outline-none"
                 style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  background: "transparent",
-                  border: "1px solid var(--line-strong)",
-                  color: "var(--ink-soft)",
-                  fontFamily: "var(--font-stat-mono)",
-                  fontSize: 11,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  fontWeight: 500,
+                  ...inputStyle,
+                  height: "auto",
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  fontFamily: "var(--font-display)",
+                  fontStyle: "italic",
+                  fontSize: 16,
+                }}
+              />
+              <SubmitButton
+                pendingLabel="saving…"
+                style={{
+                  ...primaryStyle,
+                  minHeight: 40,
+                  fontSize: 14,
+                  alignSelf: "flex-start",
+                  padding: "0 16px",
                 }}
               >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                <span>
-                  {myCurrentCompletion.note ? "edit note" : "add a note"}
-                </span>
-              </summary>
-              <form
-                action={saveCompletionNote}
-                className="mt-2.5 flex flex-col gap-2.5"
-              >
-                <input type="hidden" name="pact_id" value={pact.id} />
-                <input
-                  type="hidden"
-                  name="completion_id"
-                  value={myCurrentCompletion.id}
-                />
-                <textarea
-                  name="note"
-                  rows={2}
-                  maxLength={500}
-                  defaultValue={myCurrentCompletion.note ?? ""}
-                  placeholder="how did it go?"
-                  className="w-full resize-none outline-none"
-                  style={{
-                    ...inputStyle,
-                    height: "auto",
-                    paddingTop: 10,
-                    paddingBottom: 10,
-                    fontFamily: "var(--font-display)",
-                    fontStyle: "italic",
-                    fontSize: 16,
-                  }}
-                />
-                <SubmitButton
-                  pendingLabel="saving…"
-                  style={{
-                    ...primaryStyle,
-                    minHeight: 40,
-                    fontSize: 14,
-                    alignSelf: "flex-start",
-                    padding: "0 16px",
-                  }}
-                >
-                  {myCurrentCompletion.note ? "update note" : "save note"}
-                </SubmitButton>
-              </form>
-            </details>
-          )}
+                {myCurrentCompletion.note ? "update note" : "save note"}
+              </SubmitButton>
+            </form>
+          </details>
         </section>
       )}
 
@@ -567,6 +482,42 @@ export default async function PactPage({
               completed_at: c.completed_at,
             }))}
           />
+        </section>
+      )}
+
+      {challenge && pendingToNudge.length > 0 && (
+        <section className="px-5 pt-6">
+          <div className="label mb-2">still pending</div>
+          <ul
+            className="overflow-hidden"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            {pendingToNudge.map((m, i, arr) => (
+              <li
+                key={m.user_id}
+                className="flex items-center gap-3 p-3"
+                style={{
+                  borderBottom:
+                    i < arr.length - 1 ? "1px solid var(--line)" : "none",
+                }}
+              >
+                <Avatar name={m.name} size={36} />
+                <div className="min-w-0 flex-1">
+                  <div style={{ fontWeight: 500, fontSize: 15 }}>{m.name}</div>
+                  {m.latestNudge && (
+                    <div className="label mt-0.5">
+                      just nudged · {timeAgo(m.latestNudge)}
+                    </div>
+                  )}
+                </div>
+                <NudgeButton pactId={pact.id} toUserId={m.user_id} />
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
