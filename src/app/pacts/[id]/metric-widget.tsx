@@ -258,13 +258,15 @@ export function MetricSideBySide({
   const [showBreakdown, setShowBreakdown] = useState(false);
   return (
     <>
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-4">
         {circle}
         <div
-          className="flex-1 min-w-0 px-4 py-3"
+          className="flex items-center px-4"
           style={{
-            background: "var(--accent2-soft)",
+            background: "transparent",
+            border: "1.5px solid var(--accent)",
             borderRadius: "var(--radius)",
+            height: 84,
           }}
         >
           <MetricInline
