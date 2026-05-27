@@ -3,6 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/auth", "/signup-confirm"];
 
+// API routes handle their own auth — middleware should not intercept and
+// redirect them to /login (an external cron caller does not have a session
+// cookie and would loop into a 307 chain).
+const isApiPath = (p: string) => p === "/api" || p.startsWith("/api/");
+
 // See note in src/lib/supabase/server.ts — keeping cookie attributes in sync
 // across the two server clients so refresh in middleware sets cookies with
 // the same Secure / SameSite / Path the server-component client expects.
@@ -42,6 +47,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  if (isApiPath(path)) return response;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
   if (!user && !isPublic) {
