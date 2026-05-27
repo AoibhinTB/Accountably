@@ -14,7 +14,7 @@ import {
 import { CheckInGrid } from "./check-in-grid";
 import { EditPactDialog } from "./edit-pact-dialog";
 import { IconEditTrigger } from "./icon-edit-trigger";
-import { MetricWidget } from "./metric-widget";
+import { MetricSideBySide } from "./metric-widget";
 import { NudgeButton } from "./nudge-button";
 import { PactCircle } from "./pact-circle";
 import { saveCompletionNote } from "../actions";
@@ -367,31 +367,41 @@ export default async function PactPage({
       )}
 
       {challenge && (
-        <section className="px-5 pt-6 flex justify-center">
-          <PactCircle
-            pactId={pact.id}
-            icon={pact.icon}
-            initialDone={!!myCurrentCompletion}
-            periodLabel={periodLabel}
-          />
+        <section className="px-5 pt-6">
+          {challenge.metric_kind ? (
+            <MetricSideBySide
+              metricKind={challenge.metric_kind as "count" | "minutes"}
+              metricName={challenge.metric_name}
+              completions={(recentCompletions ?? []).map((c) => ({
+                user_id: c.user_id,
+                metric_value: c.metric_value,
+                completed_at: c.completed_at,
+              }))}
+              members={(members ?? []).map((m) => ({
+                user_id: m.user_id,
+                display_name: m.profiles?.display_name ?? "unknown",
+              }))}
+              currentUserId={currentUserId}
+              circle={
+                <PactCircle
+                  pactId={pact.id}
+                  icon={pact.icon}
+                  initialDone={!!myCurrentCompletion}
+                  periodLabel={periodLabel}
+                />
+              }
+            />
+          ) : (
+            <div className="flex justify-center">
+              <PactCircle
+                pactId={pact.id}
+                icon={pact.icon}
+                initialDone={!!myCurrentCompletion}
+                periodLabel={periodLabel}
+              />
+            </div>
+          )}
         </section>
-      )}
-
-      {challenge && challenge.metric_kind && (
-        <MetricWidget
-          metricKind={challenge.metric_kind as "count" | "minutes"}
-          metricName={challenge.metric_name}
-          completions={(recentCompletions ?? []).map((c) => ({
-            user_id: c.user_id,
-            metric_value: c.metric_value,
-            completed_at: c.completed_at,
-          }))}
-          members={(members ?? []).map((m) => ({
-            user_id: m.user_id,
-            display_name: m.profiles?.display_name ?? "unknown",
-          }))}
-          currentUserId={currentUserId}
-        />
       )}
 
       {challenge && myCurrentCompletion && (
