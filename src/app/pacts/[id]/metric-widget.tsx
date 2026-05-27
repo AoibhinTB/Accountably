@@ -258,13 +258,13 @@ export function MetricSideBySide({
   const [showBreakdown, setShowBreakdown] = useState(false);
   return (
     <>
-      <div className="flex items-start gap-4">
+      <div className="flex items-start justify-between gap-4">
         {circle}
         <div
           className="flex items-center px-4"
           style={{
             background: "transparent",
-            border: "1.5px solid var(--accent)",
+            border: "1.5px solid var(--accent-soft)",
             borderRadius: "var(--radius)",
             height: 84,
           }}
