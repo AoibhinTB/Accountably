@@ -102,9 +102,12 @@ export function PactCircle({
           textTransform: "uppercase",
           color: done ? "var(--accent)" : "var(--ink-soft)",
           fontWeight: 600,
+          textAlign: "center",
+          lineHeight: 1.2,
+          maxWidth: 100,
         }}
       >
-        {done ? `${periodLabel} done` : `tap to mark ${periodLabel} done`}
+        {done ? `${periodLabel} done` : `tap to log ${periodLabel}`}
       </div>
     </div>
   );

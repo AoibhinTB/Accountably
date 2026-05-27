@@ -237,6 +237,8 @@ export function MetricBreakdown({
 
 // Drives the circle-row pair: inline metric sits alongside the circle (via
 // the `circle` prop), and the breakdown expands below in a sibling node.
+// The metric is wrapped in a soft-tinted box that lines up next to the
+// circle and visually balances the row.
 export function MetricSideBySide({
   metricKind,
   metricName,
@@ -256,15 +258,23 @@ export function MetricSideBySide({
   const [showBreakdown, setShowBreakdown] = useState(false);
   return (
     <>
-      <div className="flex items-center justify-center gap-6">
+      <div className="flex items-center gap-4">
         {circle}
-        <MetricInline
-          metricKind={metricKind}
-          metricName={metricName}
-          completions={completions}
-          period={period}
-          onCyclePeriod={() => setPeriod(nextPeriod(period))}
-        />
+        <div
+          className="flex-1 min-w-0 px-4 py-3"
+          style={{
+            background: "var(--accent2-soft)",
+            borderRadius: "var(--radius)",
+          }}
+        >
+          <MetricInline
+            metricKind={metricKind}
+            metricName={metricName}
+            completions={completions}
+            period={period}
+            onCyclePeriod={() => setPeriod(nextPeriod(period))}
+          />
+        </div>
       </div>
       {members.length > 1 && (
         <MetricBreakdown
