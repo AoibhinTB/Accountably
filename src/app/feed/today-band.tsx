@@ -14,12 +14,16 @@ export type TodayPact = {
   // ISO timestamp of the most recent nudge I've received in this period for
   // this pact's challenge, or null. Cleared when I check in.
   nudgedAt: string | null;
+  metricKind: "count" | "minutes" | null;
+  metricName: string | null;
 };
 
 type NotePrompt = {
   pactId: string;
   pactName: string;
   completionId: string;
+  metricKind: "count" | "minutes" | null;
+  metricName: string | null;
 };
 
 const PeriodPill = ({
@@ -72,6 +76,8 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
           pactId: pact.id,
           pactName: pact.name,
           completionId: result.completionId,
+          metricKind: pact.metricKind,
+          metricName: pact.metricName,
         });
       }
     });
@@ -186,8 +192,13 @@ function NoteSheet({
   onClose: () => void;
 }) {
   const [note, setNote] = useState("");
+  const [metric, setMetric] = useState("");
   const [isSaving, startSaving] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const hasMetric = !!prompt.metricKind;
+  const metricLabel =
+    prompt.metricKind === "minutes" ? "minutes" : prompt.metricName ?? "units";
 
   useEffect(() => {
     // Defer focus a tick so the slide-in animation has started.
@@ -206,12 +217,23 @@ function NoteSheet({
 
   const onSave = () => {
     const trimmed = note.trim();
-    if (!trimmed) {
+    const parsedMetric =
+      metric.trim() === "" ? undefined : Math.max(0, parseInt(metric, 10));
+    const validMetric =
+      parsedMetric === undefined || Number.isFinite(parsedMetric)
+        ? parsedMetric
+        : undefined;
+    // Nothing to save if neither note nor metric provided.
+    if (!trimmed && validMetric === undefined) {
       onClose();
       return;
     }
     startSaving(async () => {
-      const result = await saveNoteInline(prompt.completionId, trimmed);
+      const result = await saveNoteInline(
+        prompt.completionId,
+        trimmed || null,
+        validMetric,
+      );
       if (!result.ok) {
         console.error("saveNoteInline failed:", result.error);
       }
@@ -323,6 +345,32 @@ function NoteSheet({
           }}
         />
 
+        {hasMetric && (
+          <label className="mt-3 block">
+            <span className="label">{metricLabel}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
+              value={metric}
+              onChange={(e) => setMetric(e.target.value)}
+              placeholder="0"
+              className="mt-1.5 w-full outline-none"
+              style={{
+                height: 48,
+                background: "var(--card)",
+                border: "1.5px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "0 14px",
+                fontSize: 16,
+                color: "var(--ink)",
+                fontFamily: "var(--font-body)",
+              }}
+            />
+          </label>
+        )}
+
         <div className="mt-3 flex gap-2.5">
           <button
             type="button"
@@ -345,7 +393,7 @@ function NoteSheet({
           <button
             type="button"
             onClick={onSave}
-            disabled={isSaving || !note.trim()}
+            disabled={isSaving || (!note.trim() && !metric.trim())}
             className="press flex-1 disabled:opacity-50"
             style={{
               minHeight: 48,

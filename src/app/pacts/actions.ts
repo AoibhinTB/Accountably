@@ -20,6 +20,37 @@ const parseDaysOfWeek = (raw: FormDataEntryValue | null): number[] | null => {
   return unique.length > 0 ? unique : null;
 };
 
+// Parses a metric_value form field. Returns undefined when the field is
+// missing/empty (so we know to skip updating the column), null when the
+// user explicitly cleared a previously-set value, and a non-negative
+// integer otherwise.
+const parseMetricValue = (
+  raw: FormDataEntryValue | null,
+): number | null | undefined => {
+  if (raw === null) return undefined;
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (s === "") return null;
+  const n = parseInt(s, 10);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+};
+
+const parseMetric = (
+  kindRaw: FormDataEntryValue | null,
+  nameRaw: FormDataEntryValue | null,
+): { metric_kind: "count" | "minutes" | null; metric_name: string | null } => {
+  const kind = typeof kindRaw === "string" ? kindRaw.trim() : "";
+  if (kind !== "count" && kind !== "minutes") {
+    return { metric_kind: null, metric_name: null };
+  }
+  const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+  if (kind === "count") {
+    const safeName = name.slice(0, 30) || "units";
+    return { metric_kind: "count", metric_name: safeName };
+  }
+  return { metric_kind: "minutes", metric_name: "minutes" };
+};
+
 export async function createPact(formData: FormData) {
   const supabase = await createClient();
 
@@ -46,6 +77,10 @@ export async function createPact(formData: FormData) {
   const icon = iconRaw && iconRaw.length <= 16 ? iconRaw : null;
 
   const daysOfWeek = parseDaysOfWeek(formData.get("days_of_week"));
+  const metric = parseMetric(
+    formData.get("metric_kind"),
+    formData.get("metric_name"),
+  );
 
   const { data, error } = await supabase.rpc("create_pact", {
     p_name: name,
@@ -61,6 +96,20 @@ export async function createPact(formData: FormData) {
     redirect(
       `/pacts/new?error=${encodeURIComponent(error?.message ?? "Could not create pact")}`,
     );
+  }
+
+  // Metric fields are not in the create_pact RPC signature, so we set them
+  // with a follow-up update on the just-created active challenge for this
+  // group. Skipped when the pact opts out of metrics.
+  if (metric.metric_kind) {
+    await supabase
+      .from("challenges")
+      .update({
+        metric_kind: metric.metric_kind,
+        metric_name: metric.metric_name,
+      })
+      .eq("group_id", data)
+      .eq("archived", false);
   }
 
   revalidatePath("/pacts");
@@ -103,6 +152,10 @@ export async function updatePact(formData: FormData) {
   const icon = iconRaw && iconRaw.length <= 16 ? iconRaw : null;
 
   const daysOfWeek = parseDaysOfWeek(formData.get("days_of_week"));
+  const metric = parseMetric(
+    formData.get("metric_kind"),
+    formData.get("metric_name"),
+  );
 
   const { data: groupUpdate, error: groupErr } = await supabase
     .from("groups")
@@ -127,6 +180,8 @@ export async function updatePact(formData: FormData) {
       start_date: startDateRaw,
       end_date: endDate,
       days_of_week: daysOfWeek,
+      metric_kind: metric.metric_kind,
+      metric_name: metric.metric_name,
     })
     .eq("group_id", pactId)
     .eq("archived", false);
@@ -204,10 +259,14 @@ export async function saveCompletionNote(formData: FormData) {
   const detailUrl = `/pacts/${pactId}`;
   const noteRaw = String(formData.get("note") ?? "").trim();
   const note = noteRaw ? noteRaw : null;
+  const metricValue = parseMetricValue(formData.get("metric_value"));
+
+  const update: Record<string, string | number | null> = { note };
+  if (metricValue !== undefined) update.metric_value = metricValue;
 
   const { data, error } = await supabase
     .from("completions")
-    .update({ note })
+    .update(update)
     .eq("id", completionId)
     .select("id")
     .maybeSingle();
@@ -473,18 +532,26 @@ export async function backdateCompletion(
 }
 
 // Client-callable variant of saveCompletionNote — no redirect, used by the
-// Feed today-band's post-log note sheet so the user stays on /feed.
+// Feed today-band's post-log note sheet so the user stays on /feed. Passing
+// metricValue as undefined leaves the column untouched; passing null clears
+// it; passing a number sets it.
 export async function saveNoteInline(
   completionId: string,
   note: string | null,
+  metricValue?: number | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!completionId) return { ok: false, error: "Missing completion" };
 
   const supabase = await createClient();
 
+  const update: Record<string, string | number | null> = {
+    note: note ?? null,
+  };
+  if (metricValue !== undefined) update.metric_value = metricValue;
+
   const { data, error } = await supabase
     .from("completions")
-    .update({ note: note ?? null })
+    .update(update)
     .eq("id", completionId)
     .select("id")
     .maybeSingle();
@@ -492,6 +559,7 @@ export async function saveNoteInline(
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: "Not authorized" };
 
+  revalidatePath(`/pacts`);
   revalidatePath("/feed");
   return { ok: true };
 }

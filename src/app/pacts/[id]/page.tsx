@@ -14,6 +14,7 @@ import {
 import { CheckInGrid } from "./check-in-grid";
 import { EditPactDialog } from "./edit-pact-dialog";
 import { IconEditTrigger } from "./icon-edit-trigger";
+import { MetricWidget } from "./metric-widget";
 import { NudgeButton } from "./nudge-button";
 import { PactCircle } from "./pact-circle";
 import { saveCompletionNote } from "../actions";
@@ -40,6 +41,8 @@ type Challenge = {
   archived: boolean;
   created_at: string;
   days_of_week: number[] | null;
+  metric_kind: string | null;
+  metric_name: string | null;
 };
 
 const stickerForName = (name: string) =>
@@ -78,7 +81,7 @@ export default async function PactPage({
     supabase
       .from("groups")
       .select(
-        "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week)",
+        "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week, metric_kind, metric_name)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -111,6 +114,7 @@ export default async function PactPage({
     user_id: string;
     completed_at: string;
     note: string | null;
+    metric_value: number | null;
   };
 
   const membersPromise = supabase
@@ -125,7 +129,7 @@ export default async function PactPage({
   const recentCompletionsPromise = challenge
     ? supabase
         .from("completions")
-        .select("id, user_id, completed_at, note")
+        .select("id, user_id, completed_at, note, metric_value")
         .eq("challenge_id", challenge.id)
         .gte("completed_at", pactHistoryStart)
         .order("completed_at", { ascending: false })
@@ -266,6 +270,8 @@ export default async function PactPage({
                     days_of_week: challenge.days_of_week,
                     start_date: challenge.start_date,
                     end_date: challenge.end_date,
+                    metric_kind: challenge.metric_kind,
+                    metric_name: challenge.metric_name,
                   }}
                   isCreator={isCreator}
                   reminder={{
@@ -371,6 +377,23 @@ export default async function PactPage({
         </section>
       )}
 
+      {challenge && challenge.metric_kind && (
+        <MetricWidget
+          metricKind={challenge.metric_kind as "count" | "minutes"}
+          metricName={challenge.metric_name}
+          completions={(recentCompletions ?? []).map((c) => ({
+            user_id: c.user_id,
+            metric_value: c.metric_value,
+            completed_at: c.completed_at,
+          }))}
+          members={(members ?? []).map((m) => ({
+            user_id: m.user_id,
+            display_name: m.profiles?.display_name ?? "unknown",
+          }))}
+          currentUserId={currentUserId}
+        />
+      )}
+
       {challenge && myCurrentCompletion && (
         <section className="px-5 pt-3 flex justify-center">
           <details className="group">
@@ -433,6 +456,32 @@ export default async function PactPage({
                   fontSize: 16,
                 }}
               />
+              {challenge.metric_kind && (
+                <label className="block">
+                  <span className="label">
+                    {challenge.metric_kind === "minutes"
+                      ? "minutes"
+                      : challenge.metric_name ?? "units"}
+                  </span>
+                  <input
+                    name="metric_value"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    defaultValue={myCurrentCompletion.metric_value ?? ""}
+                    placeholder="0"
+                    className="mt-1.5 w-full outline-none"
+                    style={{
+                      ...inputStyle,
+                      height: 44,
+                      paddingTop: 0,
+                      paddingBottom: 0,
+                      fontSize: 15,
+                    }}
+                  />
+                </label>
+              )}
               <SubmitButton
                 pendingLabel="saving…"
                 style={{

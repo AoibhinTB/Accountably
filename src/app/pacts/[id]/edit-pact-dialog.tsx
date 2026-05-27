@@ -5,6 +5,7 @@ import { Chevron } from "@/components/ui/chevron";
 import { ConfirmForm } from "@/components/confirm-form";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
+import { MetricPicker } from "@/components/ui/metric-picker";
 import { SubmitButton } from "@/components/submit-button";
 import { deletePact, updatePact } from "../actions";
 import { updatePactReminder } from "@/app/you/notifications-actions";
@@ -24,6 +25,8 @@ type Props = {
     days_of_week: number[] | null;
     start_date: string;
     end_date: string | null;
+    metric_kind: string | null;
+    metric_name: string | null;
   };
   isCreator: boolean;
   reminder: {
@@ -217,6 +220,11 @@ export function EditPactDialog({
               <HowOftenPicker
                 defaultFrequency={challenge.frequency}
                 defaultDays={challenge.days_of_week ?? [0, 1, 2, 3, 4, 5, 6]}
+              />
+
+              <MetricPicker
+                defaultKind={challenge.metric_kind}
+                defaultName={challenge.metric_name}
               />
 
               <details className="group">

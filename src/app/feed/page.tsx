@@ -24,6 +24,8 @@ type PactRow = {
       frequency: Frequency;
       archived: boolean;
       days_of_week: number[] | null;
+      metric_kind: "count" | "minutes" | null;
+      metric_name: string | null;
     }[];
   } | null;
 };
@@ -76,7 +78,7 @@ export default async function FeedPage() {
     supabase
       .from("group_members")
       .select(
-        "groups(id, name, icon, created_at, challenges(id, frequency, archived, days_of_week))",
+        "groups(id, name, icon, created_at, challenges(id, frequency, archived, days_of_week, metric_kind, metric_name))",
       )
       .eq("user_id", user.id)
       .returns<(PactRow & { groups: { created_at: string } | null })[]>(),
@@ -222,6 +224,8 @@ export default async function FeedPage() {
         frequency: p.challenge.frequency,
         doneThisPeriod: done,
         nudgedAt: !done ? nudgedAt : null,
+        metricKind: p.challenge.metric_kind,
+        metricName: p.challenge.metric_name,
       };
     });
 
