@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 type Period = "today" | "week" | "month" | "year" | "all";
-type View = "group" | "individuals";
 
 type Completion = {
   user_id: string;
@@ -16,21 +15,22 @@ type MemberLite = {
   display_name: string;
 };
 
-const PERIODS: { value: Period; label: string }[] = [
-  { value: "today", label: "today" },
-  { value: "week", label: "week" },
-  { value: "month", label: "month" },
-  { value: "year", label: "year" },
-  { value: "all", label: "all" },
-];
+const PERIOD_ORDER: Period[] = ["today", "week", "month", "year", "all"];
+const PERIOD_LABEL: Record<Period, string> = {
+  today: "today",
+  week: "this week",
+  month: "this month",
+  year: "this year",
+  all: "all time",
+};
 
-const VIEWS: { value: View; label: string }[] = [
-  { value: "group", label: "group" },
-  { value: "individuals", label: "individuals" },
-];
+function nextPeriod(p: Period): Period {
+  const i = PERIOD_ORDER.indexOf(p);
+  return PERIOD_ORDER[(i + 1) % PERIOD_ORDER.length];
+}
 
 // Period thresholds in UTC. "all" returns null which the filter treats as
-// "no threshold".
+// no threshold.
 function periodStart(period: Period, now: Date): Date | null {
   if (period === "all") return null;
   if (period === "today") {
@@ -41,7 +41,6 @@ function periodStart(period: Period, now: Date): Date | null {
   if (period === "week") {
     const d = new Date(now);
     d.setUTCHours(0, 0, 0, 0);
-    // Monday-based week: 0=Sun → 6, 1=Mon → 0
     const offset = (d.getUTCDay() + 6) % 7;
     d.setUTCDate(d.getUTCDate() - offset);
     return d;
@@ -61,15 +60,9 @@ function formatMetric(
     if (total < 60) return { number: String(total), unit: "min" };
     const h = Math.floor(total / 60);
     const m = total % 60;
-    return {
-      number: `${h}h${m > 0 ? ` ${m}m` : ""}`,
-      unit: "",
-    };
+    return { number: `${h}h${m > 0 ? ` ${m}m` : ""}`, unit: "" };
   }
-  return {
-    number: total.toLocaleString(),
-    unit: name ?? "units",
-  };
+  return { number: total.toLocaleString(), unit: name ?? "units" };
 }
 
 export function MetricWidget({
@@ -86,7 +79,8 @@ export function MetricWidget({
   currentUserId: string | null;
 }) {
   const [period, setPeriod] = useState<Period>("week");
-  const [view, setView] = useState<View>("group");
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const multiMember = members.length > 1;
 
   const now = new Date();
   const threshold = periodStart(period, now);
@@ -98,8 +92,6 @@ export function MetricWidget({
   const total = inRange.reduce((acc, c) => acc + (c.metric_value ?? 0), 0);
   const formatted = formatMetric(total, metricKind, metricName);
 
-  // Per-member totals for the individuals view. Members with zero are still
-  // listed so people can see who has not contributed yet this period.
   const perMember = members
     .map((m) => ({
       ...m,
@@ -111,32 +103,34 @@ export function MetricWidget({
 
   return (
     <section
-      className="mx-5 mt-5 p-4"
+      className="mx-5 mt-5 px-4 py-3"
       style={{
         background: "var(--card)",
         border: "1px solid var(--line)",
         borderRadius: "var(--radius)",
       }}
     >
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <ChipGroup
-          options={PERIODS}
-          value={period}
-          onChange={setPeriod}
-        />
-        {members.length > 1 && (
-          <ChipGroup options={VIEWS} value={view} onChange={setView} />
-        )}
-      </div>
-
-      {view === "group" ? (
-        <div className="flex items-baseline gap-2">
+      <button
+        type="button"
+        onClick={() => setPeriod(nextPeriod(period))}
+        aria-label={`Period: ${PERIOD_LABEL[period]}. Tap to change.`}
+        className="press w-full text-left"
+        style={{
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+          display: "block",
+        }}
+      >
+        <div className="flex items-baseline gap-1.5">
           <span
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: 44,
+              fontSize: 28,
               lineHeight: 1,
               color: "var(--ink)",
+              fontVariantNumeric: "tabular-nums",
             }}
           >
             {formatted.number}
@@ -144,100 +138,85 @@ export function MetricWidget({
           {formatted.unit && (
             <span
               className="label"
-              style={{ fontSize: 12, color: "var(--ink-soft)" }}
+              style={{ fontSize: 11, color: "var(--ink-soft)" }}
             >
               {formatted.unit}
             </span>
           )}
         </div>
-      ) : (
-        <ul className="flex flex-col gap-1.5">
-          {perMember.map((m) => {
-            const isYou = m.user_id === currentUserId;
-            const f = formatMetric(m.total, metricKind, metricName);
-            return (
-              <li
-                key={m.user_id}
-                className="flex items-baseline justify-between"
-                style={{
-                  padding: "6px 0",
-                  borderBottom: "1px solid var(--line)",
-                }}
-              >
-                <span style={{ fontSize: 14, color: "var(--ink)" }}>
-                  {m.display_name}
-                  {isYou && (
-                    <span style={{ color: "var(--mute)", marginLeft: 4 }}>
-                      · you
+        <div
+          className="label mt-1"
+          style={{ fontSize: 10, color: "var(--mute)" }}
+        >
+          {PERIOD_LABEL[period]}
+        </div>
+      </button>
+
+      {multiMember && (
+        <>
+          {showBreakdown && (
+            <ul className="mt-3 flex flex-col">
+              {perMember.map((m, i) => {
+                const isYou = m.user_id === currentUserId;
+                const f = formatMetric(m.total, metricKind, metricName);
+                return (
+                  <li
+                    key={m.user_id}
+                    className="flex items-baseline justify-between"
+                    style={{
+                      padding: "5px 0",
+                      borderBottom:
+                        i < perMember.length - 1
+                          ? "1px solid var(--line)"
+                          : "none",
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: "var(--ink)" }}>
+                      {m.display_name}
+                      {isYou && (
+                        <span style={{ color: "var(--mute)", marginLeft: 4 }}>
+                          · you
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-stat-mono)",
-                    fontSize: 14,
-                    color: m.total > 0 ? "var(--ink)" : "var(--mute)",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {f.number}
-                  {f.unit ? ` ${f.unit}` : ""}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-stat-mono)",
+                        fontSize: 13,
+                        color: m.total > 0 ? "var(--ink)" : "var(--mute)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {f.number}
+                      {f.unit ? ` ${f.unit}` : ""}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowBreakdown((v) => !v)}
+              className="press"
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                color: "var(--mute)",
+                fontFamily: "var(--font-stat-mono)",
+                fontSize: 10,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                fontWeight: 500,
+              }}
+            >
+              {showBreakdown ? "hide" : "by member"}
+            </button>
+          </div>
+        </>
       )}
     </section>
-  );
-}
-
-function ChipGroup<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div
-      className="inline-flex items-center"
-      style={{
-        background: "var(--card-inset)",
-        border: "1px solid var(--line)",
-        borderRadius: 999,
-        padding: 2,
-      }}
-    >
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(o.value)}
-            aria-pressed={on}
-            className="press"
-            style={{
-              minHeight: 26,
-              padding: "0 10px",
-              borderRadius: 999,
-              background: on ? "var(--accent)" : "transparent",
-              color: on ? "#fff" : "var(--ink-soft)",
-              border: "none",
-              fontFamily: "var(--font-stat-mono)",
-              fontSize: 10.5,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              fontWeight: 500,
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
   );
 }

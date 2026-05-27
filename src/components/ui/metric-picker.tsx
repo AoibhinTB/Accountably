@@ -57,6 +57,30 @@ export function MetricPicker({
           title="count"
           subtitle="e.g. pages, reps, miles"
         />
+        {kind === "count" && (
+          <label className="block pl-3">
+            <span className="label">unit name</span>
+            <input
+              type="text"
+              value={countName}
+              onChange={(e) => setCountName(e.target.value)}
+              maxLength={30}
+              placeholder="pages"
+              required
+              className="mt-1.5 w-full outline-none"
+              style={{
+                height: 44,
+                background: "var(--card-inset)",
+                border: "1.5px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "0 14px",
+                fontSize: 15,
+                color: "var(--ink)",
+                fontFamily: "var(--font-body)",
+              }}
+            />
+          </label>
+        )}
         <OptionCard
           selected={kind === "minutes"}
           onClick={() => setKind("minutes")}
@@ -64,31 +88,6 @@ export function MetricPicker({
           subtitle="time spent on the habit"
         />
       </div>
-
-      {kind === "count" && (
-        <label className="mt-3 block">
-          <span className="label">unit name</span>
-          <input
-            type="text"
-            value={countName}
-            onChange={(e) => setCountName(e.target.value)}
-            maxLength={30}
-            placeholder="pages"
-            required
-            className="mt-1.5 w-full outline-none"
-            style={{
-              height: 44,
-              background: "var(--card-inset)",
-              border: "1.5px solid var(--line)",
-              borderRadius: "var(--radius)",
-              padding: "0 14px",
-              fontSize: 15,
-              color: "var(--ink)",
-              fontFamily: "var(--font-body)",
-            }}
-          />
-        </label>
-      )}
     </fieldset>
   );
 }
