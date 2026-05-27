@@ -25,8 +25,10 @@ export async function notifyNudge(args: {
   const pactName = group?.name?.trim();
 
   await sendPushToUser(args.toUserId, {
-    title: `${senderName} nudged you`,
-    body: pactName ? `${pactName} — your turn` : "Your turn",
+    title: "Accountably",
+    body: pactName
+      ? `${pactName}: ${senderName} nudged you`
+      : `${senderName} nudged you`,
     url: `/pacts/${args.pactId}`,
     tag: `nudge:${args.challengeId}:${args.periodStartKey}:${args.fromUserId}`,
   });
@@ -63,8 +65,10 @@ export async function notifyCompletion(args: {
   const pactName = group?.name?.trim();
 
   await sendPushToUsers(recipientIds, {
-    title: `${actorName} checked in`,
-    body: pactName ?? "",
+    title: "Accountably",
+    body: pactName
+      ? `${pactName}: ${actorName} checked in`
+      : `${actorName} checked in`,
     url: `/pacts/${args.pactId}`,
   });
 }
