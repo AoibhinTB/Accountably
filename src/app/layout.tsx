@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
+import { AuthMirror } from "@/components/auth-mirror";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
 import { PWAInstallBanner } from "@/components/pwa-install-banner";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
@@ -63,6 +64,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ServiceWorkerRegister />
+        <AuthMirror />
         <PWAInstallBanner />
         {children}
         <BottomTabBar />

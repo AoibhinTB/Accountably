@@ -1,6 +1,7 @@
 import { SubmitButton } from "@/components/submit-button";
 import { Squiggle } from "@/components/ui/squiggle";
 import { login, signup } from "./actions";
+import { SessionRestore } from "./session-restore";
 
 export default async function LoginPage({
   searchParams,
@@ -17,6 +18,7 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col px-6 pb-8 pt-12">
+      <SessionRestore />
       <div className="mt-8">
         <h1
           className="m-0"
