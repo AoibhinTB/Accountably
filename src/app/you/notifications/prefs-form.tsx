@@ -6,39 +6,18 @@ import { updateNotificationPrefs } from "../notifications-actions";
 type Initial = {
   notif_nudges?: boolean | null;
   notif_checkins?: boolean | null;
-  reminder_time?: string | null;
-  reminder_timezone?: string | null;
 };
 
-// Postgres `time` comes back as "HH:MM:SS". <input type="time"> wants "HH:MM".
-function trimToHHMM(t: string | null | undefined): string {
-  if (!t) return "20:00";
-  return t.slice(0, 5);
-}
-
-const detectedTimezone = () => {
-  if (typeof window === "undefined") return "UTC";
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
-  }
-};
-
+// Global per-type push toggles. Per-pact reminders live on the pact detail
+// page (edit-pact dialog) so users can set different times for different
+// routines, so this form only owns nudge / check-in opt-outs.
 export function PrefsForm({ initial }: { initial: Initial }) {
   const [nudges, setNudges] = useState(initial.notif_nudges ?? true);
   const [checkins, setCheckins] = useState(initial.notif_checkins ?? true);
-  const [reminderOn, setReminderOn] = useState(!!initial.reminder_time);
-  const [reminderTime, setReminderTime] = useState(trimToHHMM(initial.reminder_time));
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  const save = (patch: {
-    notif_nudges?: boolean;
-    notif_checkins?: boolean;
-    reminder_time?: string | null;
-    reminder_timezone?: string | null;
-  }) => {
+  const save = (patch: { notif_nudges?: boolean; notif_checkins?: boolean }) => {
     setError(null);
     startTransition(async () => {
       const result = await updateNotificationPrefs(patch);
@@ -58,23 +37,6 @@ export function PrefsForm({ initial }: { initial: Initial }) {
     save({ notif_checkins: next });
   };
 
-  const toggleReminder = () => {
-    const next = !reminderOn;
-    setReminderOn(next);
-    save({
-      reminder_time: next ? `${reminderTime}:00` : null,
-      reminder_timezone: next ? detectedTimezone() : null,
-    });
-  };
-
-  const changeTime = (val: string) => {
-    setReminderTime(val);
-    save({
-      reminder_time: `${val}:00`,
-      reminder_timezone: detectedTimezone(),
-    });
-  };
-
   return (
     <>
       <ul
@@ -85,47 +47,19 @@ export function PrefsForm({ initial }: { initial: Initial }) {
           borderRadius: "var(--radius)",
         }}
       >
-        <Row
-          label="nudges"
-          hint="when someone nudges you"
-          divider
-        >
+        <Row label="nudges" hint="when someone nudges you" divider>
           <Switch on={nudges} onClick={toggleNudges} />
         </Row>
-        <Row
-          label="check-ins"
-          hint="when someone in your pact checks in"
-          divider
-        >
+        <Row label="check-ins" hint="when someone in your pact checks in">
           <Switch on={checkins} onClick={toggleCheckins} />
         </Row>
-        <Row
-          label="daily reminder"
-          hint="if you have not checked in by your time"
-          divider={reminderOn}
-        >
-          <Switch on={reminderOn} onClick={toggleReminder} />
-        </Row>
-        {reminderOn && (
-          <Row label="remind me at" hint={detectedTimezone()}>
-            <input
-              type="time"
-              value={reminderTime}
-              onChange={(e) => changeTime(e.target.value)}
-              style={{
-                height: 36,
-                background: "var(--card-inset)",
-                border: "1.5px solid var(--line)",
-                borderRadius: "var(--radius-sm)",
-                padding: "0 12px",
-                fontSize: 14,
-                color: "var(--ink)",
-                fontFamily: "var(--font-body)",
-              }}
-            />
-          </Row>
-        )}
       </ul>
+      <p
+        className="label mt-3"
+        style={{ fontSize: 11, color: "var(--ink-soft)" }}
+      >
+        per-pact reminders live on each pact (tap the pencil on the pact page).
+      </p>
       {error && (
         <p
           className="mt-3 text-xs"

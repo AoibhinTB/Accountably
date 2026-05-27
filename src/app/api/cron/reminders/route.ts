@@ -2,37 +2,34 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPushToUser } from "@/lib/push/send";
 
-// Hourly cron. Looks for users who:
-//   1. have a reminder_time set
-//   2. are past that time in their own timezone today
-//   3. haven't already been reminded today (last_reminder_sent_date != today)
-//   4. still have a daily pact pending today
-// For each match, fires one consolidated push and marks last_reminder_sent_date
-// to today (in the user's tz) so we do not re-send.
+// Per-pact reminder cron. Iterates rows of group_members where reminder_time
+// is set, looks at each row's pact and active daily challenge, and fires
+// a per-pact push if:
+//   1. it is past the user's reminder_time in their stored timezone today,
+//   2. we have not already sent for this membership today (in user-local tz),
+//   3. the pact's active challenge requires today (frequency + days_of_week),
+//   4. the user has not completed it today.
 //
-// Auth: Vercel's cron runner sends Authorization: Bearer ${CRON_SECRET}.
+// Push title = pact name so the user knows which pact the reminder is for.
+// Auth: Vercel cron / cron-job.org sends Authorization: Bearer ${CRON_SECRET}.
 
 export const dynamic = "force-dynamic";
 
 type Candidate = {
-  id: string;
+  user_id: string;
+  group_id: string;
   reminder_time: string;
   reminder_timezone: string | null;
   last_reminder_sent_date: string | null;
-};
-
-type ChallengeRow = {
-  id: string;
-  frequency: "daily" | "weekly";
-  archived: boolean;
-  days_of_week: number[] | null;
-};
-
-type MemberRow = {
   groups: {
     id: string;
     name: string;
-    challenges: ChallengeRow[];
+    challenges: {
+      id: string;
+      frequency: "daily" | "weekly";
+      archived: boolean;
+      days_of_week: number[] | null;
+    }[];
   } | null;
 };
 
@@ -65,14 +62,17 @@ export async function GET(request: Request) {
   const now = new Date();
 
   const { data: candidatesRaw, error: candErr } = await supabase
-    .from("profiles")
-    .select("id, reminder_time, reminder_timezone, last_reminder_sent_date")
-    .not("reminder_time", "is", null);
+    .from("group_members")
+    .select(
+      "user_id, group_id, reminder_time, reminder_timezone, last_reminder_sent_date, groups(id, name, challenges(id, frequency, archived, days_of_week))",
+    )
+    .not("reminder_time", "is", null)
+    .returns<Candidate[]>();
 
   if (candErr) {
     return NextResponse.json({ ok: false, error: candErr.message }, { status: 500 });
   }
-  const candidates = (candidatesRaw ?? []) as Candidate[];
+  const candidates = candidatesRaw ?? [];
 
   const todayDayIdx = (now.getUTCDay() + 6) % 7;
   const dayStart = new Date(now);
@@ -82,9 +82,25 @@ export async function GET(request: Request) {
   let skipped = 0;
 
   for (const c of candidates) {
+    if (!c.groups) {
+      skipped++;
+      continue;
+    }
+    const challenge = (c.groups.challenges ?? []).find(
+      (ch) => !ch.archived && ch.frequency === "daily",
+    );
+    if (!challenge) {
+      skipped++;
+      continue;
+    }
+    const dow = challenge.days_of_week;
+    if (dow && dow.length > 0 && !dow.includes(todayDayIdx)) {
+      skipped++;
+      continue;
+    }
+
     const tz = c.reminder_timezone || "UTC";
     const local = localParts(now, tz);
-
     const [rhStr, rmStr] = c.reminder_time.split(":");
     const remH = parseInt(rhStr, 10);
     const remM = parseInt(rmStr, 10);
@@ -99,62 +115,30 @@ export async function GET(request: Request) {
       continue;
     }
 
-    // Look up the user's pacts and their active daily challenges.
-    const { data: memberRows } = await supabase
-      .from("group_members")
-      .select(
-        "groups(id, name, challenges(id, frequency, archived, days_of_week))",
-      )
-      .eq("user_id", c.id)
-      .returns<MemberRow[]>();
-
-    const pending: { challengeId: string; pactName: string }[] = [];
-    for (const mr of memberRows ?? []) {
-      const g = mr.groups;
-      if (!g) continue;
-      for (const ch of g.challenges ?? []) {
-        if (ch.archived) continue;
-        if (ch.frequency !== "daily") continue;
-        const dow = ch.days_of_week;
-        if (dow && dow.length > 0 && !dow.includes(todayDayIdx)) continue;
-        pending.push({ challengeId: ch.id, pactName: g.name });
-      }
-    }
-
-    if (pending.length === 0) {
-      skipped++;
-      continue;
-    }
-
-    // Filter out ones already completed today (UTC day).
-    const challengeIds = pending.map((p) => p.challengeId);
-    const { data: completions } = await supabase
+    // Has the user already checked this pact in today?
+    const { data: done } = await supabase
       .from("completions")
-      .select("challenge_id")
-      .eq("user_id", c.id)
-      .in("challenge_id", challengeIds)
-      .gte("completed_at", dayStart.toISOString());
-    const done = new Set((completions ?? []).map((row) => row.challenge_id));
-    const stillPending = pending.filter((p) => !done.has(p.challengeId));
-
-    if (stillPending.length === 0) {
+      .select("id")
+      .eq("user_id", c.user_id)
+      .eq("challenge_id", challenge.id)
+      .gte("completed_at", dayStart.toISOString())
+      .limit(1);
+    if (done && done.length > 0) {
       skipped++;
       continue;
     }
 
-    const count = stillPending.length;
-    const title = count === 1 ? stillPending[0].pactName : "Accountably";
-    const body =
-      count === 1
-        ? "you have not checked in yet today"
-        : `${count} pacts still need you today`;
-
-    await sendPushToUser(c.id, { title, body, url: "/feed" });
+    await sendPushToUser(c.user_id, {
+      title: c.groups.name,
+      body: "you have not checked in today",
+      url: `/pacts/${c.group_id}`,
+    });
 
     await supabase
-      .from("profiles")
+      .from("group_members")
       .update({ last_reminder_sent_date: local.date })
-      .eq("id", c.id);
+      .eq("user_id", c.user_id)
+      .eq("group_id", c.group_id);
 
     sent++;
   }

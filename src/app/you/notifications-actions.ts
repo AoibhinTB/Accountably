@@ -64,10 +64,6 @@ export async function deleteSubscription(
 type NotifPrefs = {
   notif_nudges?: boolean;
   notif_checkins?: boolean;
-  // "HH:MM" 24-hour, or null to disable. Caller passes the user's current
-  // tz alongside so the reminder cron knows what local clock to compare.
-  reminder_time?: string | null;
-  reminder_timezone?: string | null;
 };
 
 // Updates the current user's notification preferences. Only the fields
@@ -83,21 +79,12 @@ export async function updateNotificationPrefs(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not authenticated" };
 
-  const update: Record<string, boolean | string | null> = {};
+  const update: Record<string, boolean> = {};
   if (typeof prefs.notif_nudges === "boolean") {
     update.notif_nudges = prefs.notif_nudges;
   }
   if (typeof prefs.notif_checkins === "boolean") {
     update.notif_checkins = prefs.notif_checkins;
-  }
-  if (prefs.reminder_time !== undefined) {
-    update.reminder_time = prefs.reminder_time;
-    // Clearing the reminder also clears the "already sent today" marker so
-    // re-enabling later does not get blocked by a stale date.
-    if (prefs.reminder_time === null) update.last_reminder_sent_date = null;
-  }
-  if (prefs.reminder_timezone !== undefined) {
-    update.reminder_timezone = prefs.reminder_timezone;
   }
   if (Object.keys(update).length === 0) return { ok: true };
 
@@ -105,6 +92,39 @@ export async function updateNotificationPrefs(
     .from("profiles")
     .update(update)
     .eq("id", user.id);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// Per-pact daily reminder for the current user's membership in `pactId`.
+// Passing `time: null` disables the reminder (also clears the sent-today
+// marker so re-enabling later starts fresh). RLS on group_members scopes
+// the update to the caller's own row.
+export async function updatePactReminder(args: {
+  pactId: string;
+  time: string | null;
+  timezone: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!args.pactId) return { ok: false, error: "Missing pact" };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not authenticated" };
+
+  const update: Record<string, string | null> = {
+    reminder_time: args.time,
+    reminder_timezone: args.timezone,
+  };
+  if (args.time === null) update.last_reminder_sent_date = null;
+
+  const { error } = await supabase
+    .from("group_members")
+    .update(update)
+    .eq("group_id", args.pactId)
+    .eq("user_id", user.id);
 
   if (error) return { ok: false, error: error.message };
   return { ok: true };

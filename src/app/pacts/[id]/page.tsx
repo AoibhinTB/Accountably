@@ -22,6 +22,8 @@ import { InviteLink } from "./invite-link";
 type Member = {
   user_id: string;
   joined_at: string;
+  reminder_time: string | null;
+  reminder_timezone: string | null;
   profiles: {
     display_name: string;
     avatar_url: string | null;
@@ -113,7 +115,9 @@ export default async function PactPage({
 
   const membersPromise = supabase
     .from("group_members")
-    .select("user_id, joined_at, profiles(display_name, avatar_url)")
+    .select(
+      "user_id, joined_at, reminder_time, reminder_timezone, profiles(display_name, avatar_url)",
+    )
     .eq("group_id", id)
     .order("joined_at", { ascending: true })
     .returns<Member[]>();
@@ -245,23 +249,33 @@ export default async function PactPage({
           position: "relative",
         }}
       >
-        {challenge && (
-          <div style={{ position: "absolute", top: 10, right: 10 }}>
-            <EditPactDialog
-              pactId={pact.id}
-              pactName={pact.name}
-              pactIcon={pact.icon}
-              challenge={{
-                description: challenge.description,
-                frequency: challenge.frequency,
-                days_of_week: challenge.days_of_week,
-                start_date: challenge.start_date,
-                end_date: challenge.end_date,
-              }}
-              isCreator={isCreator}
-            />
-          </div>
-        )}
+        {challenge &&
+          (() => {
+            const me = (members ?? []).find(
+              (m) => m.user_id === userData.user?.id,
+            );
+            return (
+              <div style={{ position: "absolute", top: 10, right: 10 }}>
+                <EditPactDialog
+                  pactId={pact.id}
+                  pactName={pact.name}
+                  pactIcon={pact.icon}
+                  challenge={{
+                    description: challenge.description,
+                    frequency: challenge.frequency,
+                    days_of_week: challenge.days_of_week,
+                    start_date: challenge.start_date,
+                    end_date: challenge.end_date,
+                  }}
+                  isCreator={isCreator}
+                  reminder={{
+                    time: me?.reminder_time ?? null,
+                    timezone: me?.reminder_timezone ?? null,
+                  }}
+                />
+              </div>
+            );
+          })()}
         <IconEditTrigger ariaLabel="Change pact icon">
           <div
             className="-rotate-2"

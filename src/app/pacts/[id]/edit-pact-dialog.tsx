@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Chevron } from "@/components/ui/chevron";
 import { ConfirmForm } from "@/components/confirm-form";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { SubmitButton } from "@/components/submit-button";
 import { deletePact, updatePact } from "../actions";
+import { updatePactReminder } from "@/app/you/notifications-actions";
 
 // Other components on the pact-detail page (the hero-icon button) dispatch
 // this event on window to open the dialog. Keeps the trigger sites
@@ -25,6 +26,10 @@ type Props = {
     end_date: string | null;
   };
   isCreator: boolean;
+  reminder: {
+    time: string | null;
+    timezone: string | null;
+  };
 };
 
 export function EditPactDialog({
@@ -33,6 +38,7 @@ export function EditPactDialog({
   pactIcon,
   challenge,
   isCreator,
+  reminder,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -262,6 +268,13 @@ export function EditPactDialog({
               </SubmitButton>
             </form>
 
+            {challenge.frequency === "daily" && (
+              <ReminderSection
+                pactId={pactId}
+                initialTime={reminder.time}
+              />
+            )}
+
             {isCreator && (
               <div
                 className="mt-5 p-3"
@@ -294,6 +307,132 @@ export function EditPactDialog({
         </div>
       )}
     </>
+  );
+}
+
+const detectedTz = () => {
+  if (typeof window === "undefined") return "UTC";
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
+// Per-pact daily reminder controls. Lives below the edit form because it
+// targets group_members (per-user) rather than the pact itself, and saves
+// inline on each change rather than waiting for "save changes".
+function ReminderSection({
+  pactId,
+  initialTime,
+}: {
+  pactId: string;
+  initialTime: string | null;
+}) {
+  const [on, setOn] = useState(!!initialTime);
+  const [time, setTime] = useState(initialTime?.slice(0, 5) ?? "20:00");
+  const [, startTransition] = useTransition();
+
+  const save = (nextTime: string | null) => {
+    startTransition(async () => {
+      await updatePactReminder({
+        pactId,
+        time: nextTime,
+        timezone: nextTime ? detectedTz() : null,
+      });
+    });
+  };
+
+  const toggle = () => {
+    const next = !on;
+    setOn(next);
+    save(next ? `${time}:00` : null);
+  };
+
+  const changeTime = (val: string) => {
+    setTime(val);
+    if (on) save(`${val}:00`);
+  };
+
+  return (
+    <section className="mt-5">
+      <div className="label mb-2">reminder</div>
+      <ul
+        className="overflow-hidden"
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius)",
+        }}
+      >
+        <li
+          className="flex items-center justify-between p-4 gap-3"
+          style={{
+            borderBottom: on ? "1px solid var(--line)" : "none",
+          }}
+        >
+          <div className="min-w-0">
+            <div style={{ fontSize: 15 }}>daily reminder</div>
+            <div
+              className="label mt-0.5"
+              style={{ fontSize: 10, color: "var(--mute)" }}
+            >
+              push if you have not checked in by your chosen time
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={toggle}
+            aria-pressed={on}
+            className="press"
+            style={{
+              minHeight: 32,
+              padding: "0 14px",
+              borderRadius: 999,
+              background: on ? "var(--accent)" : "transparent",
+              color: on ? "var(--card)" : "var(--ink-soft)",
+              border: on
+                ? "1px solid var(--accent)"
+                : "1.5px dashed var(--line-strong)",
+              fontFamily: "var(--font-stat-mono)",
+              fontSize: 11,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+            }}
+          >
+            {on ? "on" : "off"}
+          </button>
+        </li>
+        {on && (
+          <li className="flex items-center justify-between p-4 gap-3">
+            <div className="min-w-0">
+              <div style={{ fontSize: 15 }}>remind me at</div>
+              <div
+                className="label mt-0.5"
+                style={{ fontSize: 10, color: "var(--mute)" }}
+              >
+                {detectedTz()}
+              </div>
+            </div>
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => changeTime(e.target.value)}
+              style={{
+                height: 36,
+                background: "var(--card-inset)",
+                border: "1.5px solid var(--line)",
+                borderRadius: "var(--radius-sm)",
+                padding: "0 12px",
+                fontSize: 14,
+                color: "var(--ink)",
+                fontFamily: "var(--font-body)",
+              }}
+            />
+          </li>
+        )}
+      </ul>
+    </section>
   );
 }
 
