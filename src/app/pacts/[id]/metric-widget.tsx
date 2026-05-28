@@ -274,7 +274,7 @@ export function MetricSideBySide({
         <div
           className="flex items-center px-4"
           style={{
-            background: "transparent",
+            background: "var(--card)",
             border: "1.5px solid var(--accent-soft)",
             borderRadius: "var(--radius)",
           }}
