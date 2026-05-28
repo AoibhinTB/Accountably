@@ -52,11 +52,13 @@ export function PactCircle({
 
   const labelColor = fullyDone ? "var(--accent)" : "var(--ink-soft)";
 
-  // SVG progress ring constants. Drawn over the card-coloured background so
-  // we get a crisp anti-aliased arc instead of conic-gradient stepping.
+  // SVG progress ring constants. The static outline circle and the progress
+  // arc share centre + radius so they trace the same path. Radius leaves
+  // exactly half a stroke worth of space at the button edge.
   const SIZE = 84;
-  const STROKE = 6;
-  const R = (SIZE - STROKE) / 2 - 1.5; // leave room for the 1.5px border
+  const STROKE = 1.5;
+  const PROGRESS_STROKE = 6;
+  const R = (SIZE - PROGRESS_STROKE) / 2;
   const C = 2 * Math.PI * R;
 
   return (
@@ -75,7 +77,11 @@ export function PactCircle({
           height: SIZE,
           borderRadius: "50%",
           background: fullyDone ? "var(--accent)" : "var(--card)",
-          border: fullyDone ? "none" : "1.5px solid var(--line-strong)",
+          // No CSS border — the outline is drawn by the SVG as a static
+          // circle behind the progress arc. This keeps padding-box and
+          // border-box identical so absolutely-positioned SVG children
+          // line up perfectly with the button.
+          border: "none",
           boxSizing: "border-box",
           boxShadow: fullyDone
             ? "0 8px 24px rgba(216, 98, 58, 0.38)"
@@ -89,30 +95,43 @@ export function PactCircle({
           padding: 0,
         }}
       >
-        {!fullyDone && count > 0 && (
+        {!fullyDone && (
           <svg
             width={SIZE}
             height={SIZE}
             viewBox={`0 0 ${SIZE} ${SIZE}`}
             style={{
               position: "absolute",
-              inset: 0,
+              top: 0,
+              left: 0,
               pointerEvents: "none",
             }}
             aria-hidden
           >
+            {/* Static outline — same path as the progress arc, so the arc
+                sits exactly on top of the outline as it grows. */}
             <circle
               cx={SIZE / 2}
               cy={SIZE / 2}
               r={R}
               fill="none"
-              stroke="var(--accent)"
+              stroke="var(--line-strong)"
               strokeWidth={STROKE}
-              strokeDasharray={C}
-              strokeDashoffset={C * (1 - progress)}
-              strokeLinecap="round"
-              transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
             />
+            {count > 0 && (
+              <circle
+                cx={SIZE / 2}
+                cy={SIZE / 2}
+                r={R}
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth={PROGRESS_STROKE}
+                strokeDasharray={C}
+                strokeDashoffset={C * (1 - progress)}
+                strokeLinecap="round"
+                transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+              />
+            )}
           </svg>
         )}
         <span

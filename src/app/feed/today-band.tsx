@@ -435,8 +435,9 @@ function CompletionDisk({
   const fullyDone = filled >= safeTarget;
 
   const SIZE = 76;
-  const STROKE = 6;
-  const R = (SIZE - STROKE) / 2 - 1.5;
+  const STROKE = 1.5;
+  const PROGRESS_STROKE = 6;
+  const R = (SIZE - PROGRESS_STROKE) / 2;
   const C = 2 * Math.PI * R;
 
   return (
@@ -446,7 +447,11 @@ function CompletionDisk({
         height: SIZE,
         borderRadius: "50%",
         background: fullyDone ? "var(--accent)" : "var(--card)",
-        border: fullyDone ? "none" : "1.5px solid var(--line-strong)",
+        // Outline lives in the SVG so it shares a coordinate space with the
+        // progress arc — no CSS border to offset the absolutely-positioned
+        // SVG against.
+        border: "none",
+        boxSizing: "border-box",
         boxShadow: fullyDone
           ? "0 8px 20px rgba(216, 98, 58, 0.35)"
           : "0 1px 0 rgba(42, 31, 24, 0.04)",
@@ -458,25 +463,35 @@ function CompletionDisk({
       }}
       aria-hidden
     >
-      {!fullyDone && count > 0 && (
+      {!fullyDone && (
         <svg
           width={SIZE}
           height={SIZE}
           viewBox={`0 0 ${SIZE} ${SIZE}`}
-          style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+          style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
         >
           <circle
             cx={SIZE / 2}
             cy={SIZE / 2}
             r={R}
             fill="none"
-            stroke="var(--accent)"
+            stroke="var(--line-strong)"
             strokeWidth={STROKE}
-            strokeDasharray={C}
-            strokeDashoffset={C * (1 - progress)}
-            strokeLinecap="round"
-            transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
           />
+          {count > 0 && (
+            <circle
+              cx={SIZE / 2}
+              cy={SIZE / 2}
+              r={R}
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth={PROGRESS_STROKE}
+              strokeDasharray={C}
+              strokeDashoffset={C * (1 - progress)}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+            />
+          )}
         </svg>
       )}
       {fullyDone ? (
