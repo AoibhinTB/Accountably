@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { ReactionBar } from "@/components/reactions/reaction-bar";
 import type { ReactionSummary } from "@/components/reactions/constants";
-import { deleteCompletion, saveNoteInline } from "../actions";
+import { saveNoteInline } from "../actions";
 import { noteTimestamp } from "@/lib/period";
 
 type Note = {
@@ -94,7 +93,6 @@ function NoteRow({
   );
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
-  const router = useRouter();
 
   const isAuthor = note.user_id === currentUserId;
   const ageMs = Date.now() - new Date(note.completed_at).getTime();
@@ -288,87 +286,39 @@ function NoteRow({
           </div>
         </div>
         {editable && (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="press"
-              aria-label="Edit note"
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                background: "transparent",
-                border: "1px solid var(--line-strong)",
-                color: "var(--ink-soft)",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="press"
+            aria-label="Edit note"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              background: "transparent",
+              border: "1px solid var(--line-strong)",
+              color: "var(--ink-soft)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
             >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!window.confirm("Delete this check-in?")) return;
-                startSaving(async () => {
-                  const result = await deleteCompletion(note.id);
-                  if (!result.ok) {
-                    console.error("deleteCompletion failed:", result.error);
-                    return;
-                  }
-                  router.refresh();
-                });
-              }}
-              className="press"
-              aria-label="Delete check-in"
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                background: "transparent",
-                border: "1px solid rgba(156, 31, 31, 0.4)",
-                color: "#9C1F1F",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M3 6h18" />
-                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6" />
-                <path d="M14 11v6" />
-              </svg>
-            </button>
-          </div>
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+            </svg>
+          </button>
         )}
       </div>
       {note.note && (

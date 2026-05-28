@@ -52,14 +52,16 @@ const PeriodPill = ({
 };
 
 export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
-  // Optimistic reducer mirrors the server behaviour: single-target pacts
-  // toggle between 0 and 1, multi-target pacts increment forever.
+  // Optimistic reducer mirrors the server behaviour: once myCount reaches
+  // the target, the next tap wraps back to 0; otherwise we add one. Same
+  // logic works for single-target pacts (target=1).
   const [optimistic, applyOptimistic] = useOptimistic<TodayPact[], string>(
     pacts,
     (state, pactId) =>
       state.map((p) => {
         if (p.id !== pactId) return p;
-        const nextCount = p.target === 1 ? (p.myCount === 0 ? 1 : 0) : p.myCount + 1;
+        const target = Math.max(1, p.target);
+        const nextCount = p.myCount >= target ? 0 : p.myCount + 1;
         return { ...p, myCount: nextCount };
       }),
   );

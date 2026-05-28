@@ -158,19 +158,15 @@ export function CheckInGrid({
     joinedAt: new Date(m.joined_at).getTime(),
   }));
 
-  // Helper: count for the current user including optimistic state. For a
-  // single-target pact this is 0 or 1 with toggle semantics; for multi
-  // target it adds 1 when the user has tapped this cell since load (the
-  // server action only inserts in multi mode).
+  // Helper: count for the current user including optimistic state. The cycle
+  // is the same as the server: at target → wraps to 0 on tap; otherwise +1.
+  // Only one optimistic tick is tracked here (toggled vs not); subsequent
+  // taps resolve when the server response comes back.
   const myCountOptimistic = (key: string): number => {
     if (!currentUserId) return 0;
     const serverCount = serverCountFor(key, currentUserId);
-    if (target === 1) {
-      const serverDone = serverCount > 0;
-      const effectiveDone = toggled.has(key) ? !serverDone : serverDone;
-      return effectiveDone ? 1 : 0;
-    }
-    return serverCount + (toggled.has(key) ? 1 : 0);
+    if (!toggled.has(key)) return serverCount;
+    return serverCount >= target ? 0 : serverCount + 1;
   };
   const isMyDone = (key: string): boolean =>
     myCountOptimistic(key) >= target;

@@ -335,30 +335,30 @@ export async function toggleQuickLog(
   const target = Math.max(1, challenge.target_per_period ?? 1);
   const periodStart = startOfPeriodUTC(challenge.frequency);
 
-  // Multi-target pacts are append-only via this action: each tap always
-  // inserts a new completion. Single-target pacts keep the toggle semantics
-  // (one row per period, tap-again removes).
-  if (target === 1) {
-    const { data: existing } = await supabase
-      .from("completions")
-      .select("id")
-      .eq("challenge_id", challenge.id)
-      .eq("user_id", user.id)
-      .gte("completed_at", periodStart.toISOString())
-      .order("completed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  // Look at my completions this period so we can cycle correctly. For a
+  // single-target pact this returns 0 or 1; for multi-target it can be any
+  // count.
+  const { data: mineThisPeriod } = await supabase
+    .from("completions")
+    .select("id")
+    .eq("challenge_id", challenge.id)
+    .eq("user_id", user.id)
+    .gte("completed_at", periodStart.toISOString());
 
-    if (existing) {
-      const { error: delErr } = await supabase
-        .from("completions")
-        .delete()
-        .eq("id", existing.id);
-      if (delErr) return { ok: false, error: delErr.message };
-      revalidatePath("/feed");
-      revalidatePath(`/pacts/${pactId}`);
-      return { ok: true, done: false };
-    }
+  const existingCount = (mineThisPeriod ?? []).length;
+  const existingIds = (mineThisPeriod ?? []).map((c) => c.id);
+
+  // Cycle: if I am already at-or-over target, the next tap wraps back to 0
+  // by deleting every completion in this period. Otherwise insert one.
+  if (existingCount >= target) {
+    const { error: delErr } = await supabase
+      .from("completions")
+      .delete()
+      .in("id", existingIds);
+    if (delErr) return { ok: false, error: delErr.message };
+    revalidatePath("/feed");
+    revalidatePath(`/pacts/${pactId}`);
+    return { ok: true, done: false };
   }
 
   const { data: inserted, error: insErr } = await supabase
@@ -504,25 +504,30 @@ export async function togglePeriodCompletion(
     (challenge.frequency === "daily" ? 1 : 7) * 24 * 60 * 60 * 1000;
   const periodEnd = new Date(periodStart.getTime() + stepMs);
 
-  // Single-target pacts retain the legacy toggle behaviour: tapping a filled
-  // grid cell deletes every completion in that period. Multi-target pacts
-  // are append-only via the grid; removing past entries happens in the
-  // notes-history list (which has a 24h delete window).
-  if (targetPerPeriod === 1) {
-    const { data: deleted } = await supabase
+  // Cycle the cell: if my count is already at-or-over the period target,
+  // tapping deletes every entry for the period (wrap to 0). Otherwise we
+  // fall through to insert one more.
+  const { data: mineInCell } = await supabase
+    .from("completions")
+    .select("id")
+    .eq("challenge_id", challenge.id)
+    .eq("user_id", user.id)
+    .gte("completed_at", periodStart.toISOString())
+    .lt("completed_at", periodEnd.toISOString());
+
+  const cellCount = (mineInCell ?? []).length;
+  if (cellCount >= targetPerPeriod) {
+    const { error: delErr } = await supabase
       .from("completions")
       .delete()
-      .eq("challenge_id", challenge.id)
-      .eq("user_id", user.id)
-      .gte("completed_at", periodStart.toISOString())
-      .lt("completed_at", periodEnd.toISOString())
-      .select("id");
-
-    if (deleted && deleted.length > 0) {
-      revalidatePath(`/pacts/${pactId}`);
-      revalidatePath("/feed");
-      return { ok: true, done: false };
-    }
+      .in(
+        "id",
+        (mineInCell ?? []).map((c) => c.id),
+      );
+    if (delErr) return { ok: false, error: delErr.message };
+    revalidatePath(`/pacts/${pactId}`);
+    revalidatePath("/feed");
+    return { ok: true, done: false };
   }
 
   const { error } = await supabase

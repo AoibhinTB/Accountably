@@ -19,8 +19,9 @@ export function PactCircle({
   const [count, applyOptimistic] = useOptimistic<number, "tap">(
     initialCount,
     (state) => {
-      if (target === 1) return state === 0 ? 1 : 0;
-      return state + 1;
+      // Cycle: once we are at target, the next tap wraps back to 0.
+      // Otherwise add one. Works for single-target (target=1) too.
+      return state >= Math.max(1, target) ? 0 : state + 1;
     },
   );
   const [isPending, startTransition] = useTransition();
