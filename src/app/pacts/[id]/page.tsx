@@ -228,7 +228,11 @@ export default async function PactPage({
       note: c.note as string,
       metric_value: c.metric_value,
       reactions: summarizeReactions(c.reactions ?? [], currentUserId),
-    }));
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime(),
+    );
 
   // Group streak — consecutive periods where every expected member checked in.
   const groupStreak = challenge

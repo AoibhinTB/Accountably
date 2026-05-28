@@ -250,7 +250,11 @@ export default async function FeedPage() {
         pactName: pact?.name,
         reactions: summarizeReactions(c.reactions ?? [], user.id),
       };
-    });
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime(),
+    );
 
   // ─────────────────────────────────────────────────────────────────────
   // This-week stats: total check-ins, with-notes, perfect days
