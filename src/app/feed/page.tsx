@@ -500,9 +500,9 @@ export default async function FeedPage() {
         )}
       </section>
 
-      {/* THIS WEEK */}
+      {/* YOUR WEEK */}
       <section className="mb-7">
-        <div className="label mb-2">this week</div>
+        <div className="label mb-2">your week</div>
         <div className="grid grid-cols-3 gap-2.5">
           {[
             { label: "check-ins", value: weekCheckIns },

@@ -277,7 +277,7 @@ export function MetricSideBySide({
             background: "transparent",
             border: "1.5px solid var(--accent-soft)",
             borderRadius: "var(--radius)",
-            height: 84,
+            height: 118,
           }}
         >
           <MetricInline

@@ -283,19 +283,32 @@ function NoteRow({
             className="press"
             aria-label="Edit note"
             style={{
-              padding: "4px 10px",
-              borderRadius: 999,
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
               background: "transparent",
-              color: "var(--ink-soft)",
               border: "1px solid var(--line-strong)",
-              fontFamily: "var(--font-stat-mono)",
-              fontSize: 10,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              fontWeight: 500,
+              color: "var(--ink-soft)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
             }}
           >
-            edit
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+            </svg>
           </button>
         )}
       </div>

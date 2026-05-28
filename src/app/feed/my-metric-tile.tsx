@@ -16,7 +16,7 @@ function formatMetric(
   name: string | null,
 ): { number: string; unit: string } {
   if (kind === "minutes") {
-    if (value < 60) return { number: String(value), unit: "min" };
+    if (value < 60) return { number: `${value}m`, unit: "" };
     const totalH = Math.floor(value / 60);
     const remM = value % 60;
     if (totalH < 24) {
@@ -29,31 +29,25 @@ function formatMetric(
   return { number: value.toLocaleString(), unit: name ?? "" };
 }
 
-// Cycling per-pact metric tile, used as the middle slot in the /feed
-// this-week stats row. Each tap advances to the next pact that has a
-// metric configured; the body shows the current user's total for the week
-// and the pact name underneath.
+// Cycling per-pact metric tile, used as the right-hand slot in the /feed
+// your-week stats row. Each tap advances to the next pact that has a metric
+// configured. Structured to match its sibling tiles so the number baseline
+// and the label line up across all three boxes.
 export function MyMetricTile({ metrics }: { metrics: Metric[] }) {
   const [index, setIndex] = useState(0);
 
-  const tileStyle: React.CSSProperties = {
+  const baseStyle: React.CSSProperties = {
     background: "var(--card)",
     border: "1px solid var(--line)",
     borderRadius: "var(--radius)",
     padding: 12,
     width: "100%",
-    minHeight: 86,
     textAlign: "center",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
   };
 
   const numberStyle: React.CSSProperties = {
     fontFamily: "var(--font-display)",
-    fontSize: 24,
+    fontSize: 28,
     lineHeight: 1,
     color: "var(--ink)",
     fontVariantNumeric: "tabular-nums",
@@ -61,15 +55,16 @@ export function MyMetricTile({ metrics }: { metrics: Metric[] }) {
 
   if (metrics.length === 0) {
     return (
-      <div style={tileStyle}>
+      <div style={baseStyle}>
         <div style={{ ...numberStyle, color: "var(--mute)" }}>—</div>
-        <div className="label">no metric</div>
+        <div className="label mt-1.5">no metric</div>
       </div>
     );
   }
 
   const m = metrics[index % metrics.length];
   const f = formatMetric(m.total, m.metricKind, m.metricName);
+  const subtitle = f.unit ? `${m.pactName} · ${f.unit}` : m.pactName;
 
   return (
     <button
@@ -77,46 +72,21 @@ export function MyMetricTile({ metrics }: { metrics: Metric[] }) {
       onClick={() => setIndex((i) => (i + 1) % metrics.length)}
       aria-label={`Your ${f.number}${f.unit ? ` ${f.unit}` : ""} for ${m.pactName} this week. Tap to switch pact.`}
       className="press"
-      style={tileStyle}
+      style={baseStyle}
     >
-      <div className="flex items-baseline gap-1" style={{ lineHeight: 1 }}>
-        <span style={numberStyle}>{f.number}</span>
-        {f.unit && (
-          <span
-            className="label"
-            style={{ fontSize: 9, color: "var(--ink-soft)" }}
-          >
-            {f.unit}
-          </span>
-        )}
-      </div>
+      <div style={numberStyle}>{f.number}</div>
       <div
-        className="label"
+        className="label mt-1.5"
         style={{
-          fontSize: 9,
-          color: "var(--mute)",
           maxWidth: "100%",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
         }}
-        title={m.pactName}
+        title={subtitle}
       >
-        {m.pactName}
+        {subtitle}
       </div>
-      {metrics.length > 1 && (
-        <div
-          className="label"
-          style={{
-            fontSize: 8,
-            color: "var(--accent)",
-            letterSpacing: "0.1em",
-            marginTop: 2,
-          }}
-        >
-          ↻ tap
-        </div>
-      )}
     </button>
   );
 }
