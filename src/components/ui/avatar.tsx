@@ -1,4 +1,4 @@
-const PALETTE = [
+export const AVATAR_PALETTE = [
   { bg: "#F2C7A8", ink: "#5B3322" },
   { bg: "#C8D6BE", ink: "#2F3B25" },
   { bg: "#F2A09A", ink: "#4B201D" },
@@ -7,26 +7,34 @@ const PALETTE = [
   { bg: "#E2B8D9", ink: "#4B2B45" },
   { bg: "#D6CEE2", ink: "#3B2E58" },
   { bg: "#A8C9B7", ink: "#1E3A29" },
-];
+] as const;
 
 const toneFor = (seed: string) => {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  return PALETTE[Math.abs(hash) % PALETTE.length];
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 };
+
+const isPaletteIndex = (i: number | null | undefined): i is number =>
+  typeof i === "number" && i >= 0 && i < AVATAR_PALETTE.length;
 
 export function Avatar({
   name,
   size = 40,
   ring = false,
+  colorIndex = null,
 }: {
   name: string;
   size?: number;
   ring?: boolean;
+  // 0-7 palette index. null = auto from name hash (default).
+  colorIndex?: number | null;
 }) {
   const trimmed = name.trim();
   const initial = trimmed[0]?.toUpperCase() || "?";
-  const tone = toneFor(trimmed.toLowerCase() || "?");
+  const tone = isPaletteIndex(colorIndex)
+    ? AVATAR_PALETTE[colorIndex]
+    : toneFor(trimmed.toLowerCase() || "?");
   return (
     <div
       style={{

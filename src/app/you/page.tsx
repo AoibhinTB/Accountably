@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ConfirmForm } from "@/components/confirm-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
 import { Chevron } from "@/components/ui/chevron";
 import { Squiggle } from "@/components/ui/squiggle";
 import { currentStreak, type Frequency } from "@/lib/period";
+import { EditProfileSheet } from "./edit-profile-sheet";
+import { deleteAccount } from "./profile-actions";
+
+const COMMIT_SHA =
+  process.env.NEXT_PUBLIC_BUILD_SHA?.slice(0, 7) ?? "dev";
 
 type PactRow = {
   groups: {
@@ -36,7 +42,7 @@ export default async function YouPage() {
   const [{ data: profile }, { data: pactRows }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("display_name, created_at")
+      .select("display_name, created_at, avatar_color_index")
       .eq("id", user.id)
       .maybeSingle(),
     supabase
@@ -134,7 +140,12 @@ export default async function YouPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-5 pt-10 pb-28">
       <header className="flex flex-col items-center pt-2 text-center">
-        <Avatar name={profile?.display_name ?? "?"} size={96} ring />
+        <Avatar
+          name={profile?.display_name ?? "?"}
+          size={96}
+          colorIndex={profile?.avatar_color_index ?? null}
+          ring
+        />
         <h1
           className="h-display m-0"
           style={{ fontSize: 36, marginTop: 14, lineHeight: 1 }}
@@ -145,6 +156,12 @@ export default async function YouPage() {
         <div className="mt-2" style={{ color: "var(--mute)", fontSize: 14 }}>
           {user.email}
           {joined && <> · joined {joined}</>}
+        </div>
+        <div className="mt-3">
+          <EditProfileSheet
+            initialName={profile?.display_name ?? ""}
+            initialColorIndex={profile?.avatar_color_index ?? null}
+          />
         </div>
       </header>
 
@@ -287,42 +304,31 @@ export default async function YouPage() {
             borderRadius: "var(--radius)",
           }}
         >
-          <li style={{ borderBottom: "1px solid var(--line)" }}>
-            <Link
-              href="/you/notifications"
-              className="press flex items-center justify-between p-4"
-              style={{ color: "var(--ink)" }}
-            >
-              <span style={{ fontSize: 15 }}>notifications</span>
-              <Chevron
-                direction="right"
-                size={14}
-                strokeWidth={2}
-                style={{ color: "var(--mute)" }}
-              />
-            </Link>
-          </li>
-          {["privacy", "about accountably"].map((s, i, arr) => (
+          {[
+            { label: "notifications", href: "/you/notifications" },
+            { label: "privacy", href: "/privacy" },
+            { label: "about accountably", href: "/about" },
+          ].map((row, i, arr) => (
             <li
-              key={s}
-              className="flex items-center justify-between p-4"
+              key={row.href}
               style={{
                 borderBottom:
                   i < arr.length - 1 ? "1px solid var(--line)" : "none",
-                color: "var(--ink-soft)",
               }}
             >
-              <span style={{ fontSize: 15 }}>{s}</span>
-              <span
-                className="label"
-                style={{
-                  fontSize: 9,
-                  color: "var(--mute)",
-                }}
-                aria-label="coming soon"
+              <Link
+                href={row.href}
+                className="press flex items-center justify-between p-4"
+                style={{ color: "var(--ink)" }}
               >
-                soon
-              </span>
+                <span style={{ fontSize: 15 }}>{row.label}</span>
+                <Chevron
+                  direction="right"
+                  size={14}
+                  strokeWidth={2}
+                  style={{ color: "var(--mute)" }}
+                />
+              </Link>
             </li>
           ))}
         </ul>
@@ -347,6 +353,37 @@ export default async function YouPage() {
           sign out
         </SubmitButton>
       </form>
+
+      <ConfirmForm
+        action={deleteAccount}
+        message="Delete your account? This permanently removes your data — completions, notes, reactions, nudges, push subscriptions — across every pact. This cannot be undone."
+        className="mt-3"
+      >
+        <SubmitButton
+          pendingLabel="deleting…"
+          className="w-full"
+          style={{
+            minHeight: 44,
+            background: "transparent",
+            color: "#9C1F1F",
+            borderRadius: "var(--radius)",
+            border: "1.5px solid rgba(156, 31, 31, 0.4)",
+            fontFamily: "var(--font-stat-mono)",
+            fontSize: 12,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          delete account
+        </SubmitButton>
+      </ConfirmForm>
+
+      <div
+        className="label mt-8 text-center"
+        style={{ fontSize: 10, color: "var(--mute)" }}
+      >
+        build · {COMMIT_SHA.slice(0, 7)}
+      </div>
     </main>
   );
 }

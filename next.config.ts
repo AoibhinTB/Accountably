@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Surface the commit SHA at build time so /about and /you can display
+  // it. Vercel sets VERCEL_GIT_COMMIT_SHA; locally it falls back to "dev".
+  env: {
+    NEXT_PUBLIC_BUILD_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? "dev",
+  },
   async headers() {
     return [
       {
