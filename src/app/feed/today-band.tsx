@@ -429,19 +429,21 @@ function CompletionDisk({
 }) {
   const safeTarget = Math.max(1, target);
   const filled = Math.min(count, safeTarget);
-  const angle = Math.round((filled / safeTarget) * 360);
+  const progress = filled / safeTarget;
   const fullyDone = filled >= safeTarget;
+
+  const SIZE = 76;
+  const STROKE = 6;
+  const R = (SIZE - STROKE) / 2 - 1.5;
+  const C = 2 * Math.PI * R;
+
   return (
     <div
       style={{
-        width: 76,
-        height: 76,
+        width: SIZE,
+        height: SIZE,
         borderRadius: "50%",
-        background: fullyDone
-          ? "var(--accent)"
-          : count > 0
-            ? `conic-gradient(var(--accent) 0deg ${angle}deg, var(--card) ${angle}deg 360deg)`
-            : "var(--card)",
+        background: fullyDone ? "var(--accent)" : "var(--card)",
         border: fullyDone ? "none" : "1.5px solid var(--line-strong)",
         boxShadow: fullyDone
           ? "0 8px 20px rgba(216, 98, 58, 0.35)"
@@ -454,6 +456,27 @@ function CompletionDisk({
       }}
       aria-hidden
     >
+      {!fullyDone && count > 0 && (
+        <svg
+          width={SIZE}
+          height={SIZE}
+          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+        >
+          <circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={R}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth={STROKE}
+            strokeDasharray={C}
+            strokeDashoffset={C * (1 - progress)}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+          />
+        </svg>
+      )}
       {fullyDone ? (
         <svg
           width="34"
@@ -470,10 +493,8 @@ function CompletionDisk({
       ) : (
         <span
           style={{
-            width: 50,
-            height: 50,
-            borderRadius: "50%",
-            background: "var(--card)",
+            position: "relative",
+            zIndex: 1,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -481,11 +502,11 @@ function CompletionDisk({
           }}
         >
           {icon ? (
-            <span style={{ fontSize: 26, lineHeight: 1 }}>{icon}</span>
+            <span style={{ fontSize: 30, lineHeight: 1 }}>{icon}</span>
           ) : (
             <svg
-              width="26"
-              height="26"
+              width="30"
+              height="30"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"

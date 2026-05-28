@@ -234,8 +234,10 @@ export default async function PactPage({
       },
     ]),
   );
+  // Show every completion (with or without a note) so multi-target pacts
+  // can delete check-ins from here even when no note was attached. Rows
+  // without notes still render — just compact, no italic body.
   const notesForHistory = (recentCompletions ?? [])
-    .filter((c) => c.note && c.note.trim().length > 0)
     .map((c) => {
       const profile = profileByUserId.get(c.user_id);
       return {
@@ -244,7 +246,7 @@ export default async function PactPage({
         display_name: profile?.display_name ?? "unknown",
         avatar_color_index: profile?.avatar_color_index ?? null,
         completed_at: c.completed_at,
-        note: c.note as string,
+        note: c.note,
         metric_value: c.metric_value,
         reactions: summarizeReactions(c.reactions ?? [], currentUserId),
       };

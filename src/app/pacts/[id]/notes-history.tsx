@@ -14,7 +14,7 @@ type Note = {
   display_name: string;
   avatar_color_index: number | null;
   completed_at: string;
-  note: string;
+  note: string | null;
   metric_value: number | null;
   reactions: ReactionSummary[];
 };
@@ -57,7 +57,7 @@ export function NotesHistory({
 
   return (
     <section className="px-5 pt-6">
-      <div className="label mb-2">notes</div>
+      <div className="label mb-2">check-ins</div>
       <ul className="flex flex-col gap-2">
         {notes.map((n) => (
           <NoteRow
@@ -88,7 +88,7 @@ function NoteRow({
   revalidatePath: string;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draftNote, setDraftNote] = useState(note.note);
+  const [draftNote, setDraftNote] = useState(note.note ?? "");
   const [draftMetric, setDraftMetric] = useState(
     note.metric_value !== null ? String(note.metric_value) : "",
   );
@@ -103,10 +103,6 @@ function NoteRow({
   const onSave = () => {
     setError(null);
     const trimmed = draftNote.trim();
-    if (!trimmed && metricKind === null) {
-      setError("Note cannot be empty");
-      return;
-    }
     const parsed =
       draftMetric.trim() === ""
         ? null
@@ -213,7 +209,7 @@ function NoteRow({
             type="button"
             onClick={() => {
               setEditing(false);
-              setDraftNote(note.note);
+              setDraftNote(note.note ?? "");
               setDraftMetric(
                 note.metric_value !== null ? String(note.metric_value) : "",
               );
@@ -375,18 +371,20 @@ function NoteRow({
           </div>
         )}
       </div>
-      <p
-        className="mt-2 whitespace-pre-wrap"
-        style={{
-          fontSize: 14,
-          color: "var(--ink)",
-          lineHeight: 1.4,
-          paddingLeft: 10,
-          borderLeft: "2px solid var(--accent)",
-        }}
-      >
-        {note.note}
-      </p>
+      {note.note && (
+        <p
+          className="mt-2 whitespace-pre-wrap"
+          style={{
+            fontSize: 14,
+            color: "var(--ink)",
+            lineHeight: 1.4,
+            paddingLeft: 10,
+            borderLeft: "2px solid var(--accent)",
+          }}
+        >
+          {note.note}
+        </p>
+      )}
       <ReactionBar
         completionId={note.id}
         reactions={note.reactions}

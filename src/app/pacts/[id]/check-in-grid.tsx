@@ -523,23 +523,49 @@ function CellGlyph({
   }
   if (state === "partial") {
     const safeTarget = Math.max(1, target);
-    const angle = Math.round(
-      (Math.min(count, safeTarget) / safeTarget) * 360,
-    );
+    const progress = Math.min(count, safeTarget) / safeTarget;
+    const SIZE = 26;
+    const STROKE = 3.5;
+    const R = (SIZE - STROKE) / 2;
+    const C = 2 * Math.PI * R;
     return (
       <div
         aria-label={`${count} of ${safeTarget} done`}
         style={{
-          width: 26,
-          height: 26,
-          borderRadius: "50%",
-          background: `conic-gradient(var(--accent) 0deg ${angle}deg, transparent ${angle}deg 360deg)`,
-          border: "1.5px dashed var(--line-strong)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          width: SIZE,
+          height: SIZE,
+          position: "relative",
         }}
-      />
+      >
+        <svg
+          width={SIZE}
+          height={SIZE}
+          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          aria-hidden
+        >
+          <circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={R}
+            fill="none"
+            stroke="var(--line-strong)"
+            strokeWidth="1.5"
+            strokeDasharray="2 3"
+          />
+          <circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={R}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth={STROKE}
+            strokeDasharray={C}
+            strokeDashoffset={C * (1 - progress)}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+          />
+        </svg>
+      </div>
     );
   }
   if (state === "pending") {
