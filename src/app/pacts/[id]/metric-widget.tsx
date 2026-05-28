@@ -204,7 +204,14 @@ export function MetricBreakdown({
         {show ? "hide" : "by member"}
       </button>
       {show && (
-        <ul className="mt-2 w-full flex flex-col">
+        <ul
+          className="mt-2 w-full flex flex-col px-4 py-2"
+          style={{
+            background: "var(--card)",
+            border: "1.5px solid var(--accent-soft)",
+            borderRadius: "var(--radius)",
+          }}
+        >
           {perMember.map((m, i) => {
             const isYou = m.user_id === currentUserId;
             const f = formatMetric(m.total, metricKind, metricName);
@@ -213,7 +220,7 @@ export function MetricBreakdown({
                 key={m.user_id}
                 className="flex items-baseline justify-between"
                 style={{
-                  padding: "5px 0",
+                  padding: "6px 0",
                   borderBottom:
                     i < perMember.length - 1 ? "1px solid var(--line)" : "none",
                 }}
