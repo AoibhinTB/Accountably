@@ -128,7 +128,7 @@ export default async function YouPage() {
       label: topStreakFreq === "weekly" ? "streak (wks)" : "streak (days)",
       value: topStreak,
     },
-    { label: "this month", value: monthCount ?? 0 },
+    { label: "check-ins this month", value: monthCount ?? 0 },
   ];
 
   return (

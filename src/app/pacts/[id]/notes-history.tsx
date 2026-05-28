@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Avatar } from "@/components/ui/avatar";
+import { ReactionBar } from "@/components/reactions/reaction-bar";
+import type { ReactionSummary } from "@/components/reactions/constants";
 import { saveNoteInline } from "../actions";
 import { noteTimestamp } from "@/lib/period";
 
@@ -12,6 +14,7 @@ type Note = {
   completed_at: string;
   note: string;
   metric_value: number | null;
+  reactions: ReactionSummary[];
 };
 
 const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -40,11 +43,13 @@ export function NotesHistory({
   currentUserId,
   metricKind,
   metricName,
+  pactId,
 }: {
   notes: Note[];
   currentUserId: string | null;
   metricKind: "count" | "minutes" | null;
   metricName: string | null;
+  pactId: string;
 }) {
   if (notes.length === 0) return null;
 
@@ -59,6 +64,7 @@ export function NotesHistory({
             currentUserId={currentUserId}
             metricKind={metricKind}
             metricName={metricName}
+            revalidatePath={`/pacts/${pactId}`}
           />
         ))}
       </ul>
@@ -71,11 +77,13 @@ function NoteRow({
   currentUserId,
   metricKind,
   metricName,
+  revalidatePath,
 }: {
   note: Note;
   currentUserId: string | null;
   metricKind: "count" | "minutes" | null;
   metricName: string | null;
+  revalidatePath: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draftNote, setDraftNote] = useState(note.note);
@@ -248,7 +256,7 @@ function NoteRow({
 
   return (
     <li
-      className="p-3"
+      className="p-3 relative"
       style={{
         background: "var(--card)",
         border: "1px solid var(--line)",
@@ -324,6 +332,11 @@ function NoteRow({
       >
         {note.note}
       </p>
+      <ReactionBar
+        completionId={note.id}
+        reactions={note.reactions}
+        revalidatePath={revalidatePath}
+      />
     </li>
   );
 }

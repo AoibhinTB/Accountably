@@ -19,6 +19,7 @@ import { NotesHistory } from "./notes-history";
 import { NudgeButton } from "./nudge-button";
 import { PactCircle } from "./pact-circle";
 import { saveCompletionNote } from "../actions";
+import { summarizeReactions } from "@/components/reactions/constants";
 
 type Member = {
   user_id: string;
@@ -115,6 +116,7 @@ export default async function PactPage({
     completed_at: string;
     note: string | null;
     metric_value: number | null;
+    reactions: { emoji: string; user_id: string }[] | null;
   };
 
   const membersPromise = supabase
@@ -129,7 +131,9 @@ export default async function PactPage({
   const recentCompletionsPromise = challenge
     ? supabase
         .from("completions")
-        .select("id, user_id, completed_at, note, metric_value")
+        .select(
+          "id, user_id, completed_at, note, metric_value, reactions(emoji, user_id)",
+        )
         .eq("challenge_id", challenge.id)
         .gte("completed_at", pactHistoryStart)
         .order("completed_at", { ascending: false })
@@ -223,6 +227,7 @@ export default async function PactPage({
       completed_at: c.completed_at,
       note: c.note as string,
       metric_value: c.metric_value,
+      reactions: summarizeReactions(c.reactions ?? [], currentUserId),
     }));
 
   // Group streak — consecutive periods where every expected member checked in.
@@ -592,6 +597,7 @@ export default async function PactPage({
             (challenge.metric_kind as "count" | "minutes" | null) ?? null
           }
           metricName={challenge.metric_name}
+          pactId={pact.id}
         />
       )}
 
