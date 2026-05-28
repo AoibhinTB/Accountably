@@ -304,7 +304,6 @@ export default async function YouPage() {
         >
           {[
             { label: "notifications", href: "/you/notifications" },
-            { label: "privacy", href: "/privacy" },
             { label: "settings", href: "/you/settings" },
             { label: "about accountably", href: "/about" },
           ].map((row, i, arr) => (
