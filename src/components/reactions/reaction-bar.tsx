@@ -116,13 +116,16 @@ export function ReactionBar({
           <span aria-hidden>+</span>
         </summary>
         <div
-          className="absolute right-0 top-full z-20 mt-2 grid grid-cols-5 gap-1"
+          className="absolute right-0 top-full z-20 mt-2"
           style={{
             background: "var(--card)",
             border: "1px solid var(--line)",
             borderRadius: "var(--radius)",
             padding: 6,
             boxShadow: "0 8px 24px rgba(42, 31, 24, 0.15)",
+            display: "grid",
+            gridTemplateColumns: "repeat(5, 36px)",
+            gap: 4,
           }}
         >
           {CURATED_EMOJIS.map((emoji) => {
