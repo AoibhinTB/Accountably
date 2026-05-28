@@ -77,10 +77,10 @@ export function BottomTabBar() {
           maxWidth: "calc(42rem - 24px)",
           height: 64,
           borderRadius: 999,
-          background: "var(--ink-soft)",
+          background: "var(--card)",
+          border: "1px solid var(--line)",
           padding: "0 6px",
-          boxShadow:
-            "0 8px 30px rgba(42, 31, 24, 0.18), 0 0 0 1px rgba(0,0,0,0.04)",
+          boxShadow: "0 6px 24px rgba(42, 31, 24, 0.12)",
         }}
       >
         {tabs.map((tab) => {
@@ -96,7 +96,7 @@ export function BottomTabBar() {
                   padding: "8px 14px",
                   borderRadius: 999,
                   background: active ? "var(--accent)" : "transparent",
-                  color: active ? "#fff" : "rgba(251, 242, 231, 0.6)",
+                  color: active ? "#fff" : "var(--mute)",
                   fontFamily: "var(--font-stat-mono)",
                   fontSize: 11,
                   letterSpacing: "0.06em",
