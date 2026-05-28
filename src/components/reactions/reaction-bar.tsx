@@ -1,6 +1,7 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
+import { EmojiPickerModal } from "@/components/ui/emoji-picker-modal";
 import { toggleReactionFor } from "./actions";
 import { CURATED_EMOJIS, type ReactionSummary } from "./constants";
 
@@ -42,6 +43,7 @@ export function ReactionBar({
   });
 
   const [, startTransition] = useTransition();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const reactedEmojis = new Set(
     optimistic.filter((r) => r.userHasReacted).map((r) => r.emoji),
   );
@@ -152,8 +154,33 @@ export function ReactionBar({
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            aria-label="Pick another emoji"
+            className="press"
+            style={{
+              display: "flex",
+              width: 36,
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "var(--radius-sm)",
+              fontSize: 16,
+              color: "var(--mute)",
+              background: "transparent",
+              border: "1px dashed var(--line-strong)",
+            }}
+          >
+            +
+          </button>
         </div>
       </details>
+      <EmojiPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(emoji) => onTap(emoji)}
+      />
     </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EmojiPickerModal } from "./emoji-picker-modal";
 
 export const PACT_ICON_OPTIONS = [
   "🧘",
@@ -49,6 +50,9 @@ export function IconPicker({
   legend?: string;
 }) {
   const [selected, setSelected] = useState<string>(defaultValue ?? "");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const isCustom =
+    selected !== "" && !PACT_ICON_OPTIONS.includes(selected as never);
 
   return (
     <fieldset style={{ minWidth: 0 }}>
@@ -89,7 +93,32 @@ export function IconPicker({
             </Tile>
           );
         })}
+        {isCustom && (
+          <Tile
+            aria-label={`Custom icon ${selected}`}
+            ariaPressed
+            onClick={() => setPickerOpen(true)}
+            selected
+          >
+            <span aria-hidden>{selected}</span>
+          </Tile>
+        )}
+        <Tile
+          aria-label="Choose any emoji"
+          ariaPressed={false}
+          onClick={() => setPickerOpen(true)}
+          selected={false}
+        >
+          <span aria-hidden style={{ color: "var(--mute)", fontSize: 22 }}>
+            +
+          </span>
+        </Tile>
       </div>
+      <EmojiPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(emoji) => setSelected(emoji)}
+      />
     </fieldset>
   );
 }
