@@ -7,6 +7,7 @@ import { ConfirmForm } from "@/components/confirm-form";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { MetricPicker } from "@/components/ui/metric-picker";
+import { TargetPicker } from "@/components/ui/target-picker";
 import { SubmitButton } from "@/components/submit-button";
 import { formatDate } from "@/lib/period";
 import { deletePact, updatePact } from "../actions";
@@ -37,6 +38,7 @@ type Props = {
     end_date: string | null;
     metric_kind: string | null;
     metric_name: string | null;
+    target_per_period: number;
   };
   isCreator: boolean;
   reminder: {
@@ -292,6 +294,32 @@ export function EditPactDialog({
                     defaultKind={challenge.metric_kind}
                     defaultName={challenge.metric_name}
                   />
+                </div>
+              </details>
+
+              <details className="group">
+                <summary
+                  className="press flex min-h-11 cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden"
+                  style={{
+                    padding: "0 14px",
+                    background: "var(--card-inset)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--radius)",
+                    color: "var(--ink-soft)",
+                    fontSize: 14,
+                  }}
+                >
+                  <span>times per period</span>
+                  <Chevron
+                    direction="down"
+                    size={14}
+                    strokeWidth={2}
+                    className="transition-transform group-open:rotate-180"
+                    style={{ color: "var(--mute)" }}
+                  />
+                </summary>
+                <div className="mt-3">
+                  <TargetPicker defaultValue={challenge.target_per_period} />
                 </div>
               </details>
 

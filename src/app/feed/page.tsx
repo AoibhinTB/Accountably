@@ -29,6 +29,7 @@ type PactRow = {
       days_of_week: number[] | null;
       metric_kind: "count" | "minutes" | null;
       metric_name: string | null;
+      target_per_period: number;
     }[];
   } | null;
 };
@@ -83,7 +84,7 @@ export default async function FeedPage() {
     supabase
       .from("group_members")
       .select(
-        "groups(id, name, icon, created_at, challenges(id, frequency, archived, days_of_week, metric_kind, metric_name))",
+        "groups(id, name, icon, created_at, challenges(id, frequency, archived, days_of_week, metric_kind, metric_name, target_per_period))",
       )
       .eq("user_id", user.id)
       .returns<(PactRow & { groups: { created_at: string } | null })[]>(),
@@ -217,19 +218,22 @@ export default async function FeedPage() {
     .map((p) => {
       const threshold =
         p.challenge.frequency === "daily" ? dayStart : weekStart;
-      const done = completions.some(
+      const myCount = completions.filter(
         (c) =>
           c.challenge_id === p.challenge.id &&
           c.user_id === user.id &&
           new Date(c.completed_at) >= threshold,
-      );
+      ).length;
+      const target = Math.max(1, p.challenge.target_per_period ?? 1);
+      const done = myCount >= target;
       const nudgedAt = latestNudgeByChallenge.get(p.challenge.id) ?? null;
       return {
         id: p.id,
         name: p.name,
         icon: p.icon,
         frequency: p.challenge.frequency,
-        doneThisPeriod: done,
+        myCount,
+        target,
         nudgedAt: !done ? nudgedAt : null,
         metricKind: p.challenge.metric_kind,
         metricName: p.challenge.metric_name,

@@ -18,7 +18,7 @@ type Completion = {
   completed_at: string;
 };
 
-type CellState = "done" | "pending" | "rest" | "prePact" | "preJoin";
+type CellState = "done" | "partial" | "pending" | "rest" | "prePact" | "preJoin";
 
 const DAY_MS = 86_400_000;
 const MIN_DAILY_COLS = 14;
@@ -98,6 +98,7 @@ export function CheckInGrid({
     frequency: Frequency;
     days_of_week: number[] | null;
     start_date: string;
+    target_per_period: number;
   };
   members: Member[];
   completions: Completion[];
@@ -110,14 +111,22 @@ export function CheckInGrid({
   const todayKey = periodKeyOf(now, challenge.frequency);
   const stepMs = (challenge.frequency === "daily" ? 1 : 7) * DAY_MS;
 
-  // Bucket completions by (period_key, user_id).
-  const doneByPeriodUser = new Map<string, Set<string>>();
+  const target = Math.max(1, challenge.target_per_period ?? 1);
+
+  // Bucket completions by (period_key, user_id) → count of completions in
+  // that period. Drives both "is this cell at-target" and the partial fill
+  // amount for multi-target pacts.
+  const countByPeriodUser = new Map<string, Map<string, number>>();
   for (const c of completions) {
     const key = periodKeyOf(new Date(c.completed_at), challenge.frequency);
-    const set = doneByPeriodUser.get(key) ?? new Set<string>();
-    set.add(c.user_id);
-    doneByPeriodUser.set(key, set);
+    const inner = countByPeriodUser.get(key) ?? new Map<string, number>();
+    inner.set(c.user_id, (inner.get(c.user_id) ?? 0) + 1);
+    countByPeriodUser.set(key, inner);
   }
+  const serverCountFor = (key: string, userId: string): number =>
+    countByPeriodUser.get(key)?.get(userId) ?? 0;
+  const isDoneServer = (key: string, userId: string): boolean =>
+    serverCountFor(key, userId) >= target;
 
   const dayIdxOfKey = (key: string) => {
     const d = new Date(`${key}T00:00:00Z`);
@@ -149,14 +158,22 @@ export function CheckInGrid({
     joinedAt: new Date(m.joined_at).getTime(),
   }));
 
-  // Helper: is the current user "done" for a given column key, factoring
-  // in optimistic toggle state.
-  const isMyDone = (key: string): boolean => {
-    if (!currentUserId) return false;
-    const serverDone =
-      doneByPeriodUser.get(key)?.has(currentUserId) ?? false;
-    return toggled.has(key) ? !serverDone : serverDone;
+  // Helper: count for the current user including optimistic state. For a
+  // single-target pact this is 0 or 1 with toggle semantics; for multi
+  // target it adds 1 when the user has tapped this cell since load (the
+  // server action only inserts in multi mode).
+  const myCountOptimistic = (key: string): number => {
+    if (!currentUserId) return 0;
+    const serverCount = serverCountFor(key, currentUserId);
+    if (target === 1) {
+      const serverDone = serverCount > 0;
+      const effectiveDone = toggled.has(key) ? !serverDone : serverDone;
+      return effectiveDone ? 1 : 0;
+    }
+    return serverCount + (toggled.has(key) ? 1 : 0);
   };
+  const isMyDone = (key: string): boolean =>
+    myCountOptimistic(key) >= target;
 
   const perfectColumns = new Set<string>();
   for (const col of columns) {
@@ -165,7 +182,10 @@ export function CheckInGrid({
     const colEndMs = new Date(`${col.key}T00:00:00Z`).getTime() + stepMs;
     const expected = memberJoinTimes.filter((m) => m.joinedAt < colEndMs);
     if (expected.length === 0) continue;
-    const doneSet = new Set(doneByPeriodUser.get(col.key) ?? []);
+    const doneSet = new Set<string>();
+    for (const m of expected) {
+      if (isDoneServer(col.key, m.user_id)) doneSet.add(m.user_id);
+    }
     if (currentUserId) {
       const meDone = isMyDone(col.key);
       if (meDone) doneSet.add(currentUserId);
@@ -175,6 +195,11 @@ export function CheckInGrid({
       perfectColumns.add(col.key);
     }
   }
+
+  const cellCount = (memberId: string, key: string): number =>
+    memberId === currentUserId
+      ? myCountOptimistic(key)
+      : serverCountFor(key, memberId);
 
   const computeCell = (
     member: Member,
@@ -186,11 +211,10 @@ export function CheckInGrid({
     if (colEndMs <= memberJoinedMs) return "preJoin";
     if (!isRequired(col.key)) return "rest";
 
-    if (member.user_id === currentUserId) {
-      return isMyDone(col.key) ? "done" : "pending";
-    }
-    const set = doneByPeriodUser.get(col.key);
-    return set?.has(member.user_id) ? "done" : "pending";
+    const count = cellCount(member.user_id, col.key);
+    if (count >= target) return "done";
+    if (count > 0) return "partial";
+    return "pending";
   };
 
   const onCellTap = (colKey: string) => {
@@ -382,9 +406,11 @@ export function CheckInGrid({
                 const state = computeCell(m, col);
                 const isToday = col.key === todayKey;
                 const isPerfect = perfectColumns.has(col.key);
-                // Tap toggles for me: pending → done (backdate), done → pending (untick).
+                // I can tap any of my cells; the server action toggles in
+                // single-target mode and appends in multi-target mode.
                 const canTap =
-                  isYou && (state === "pending" || state === "done");
+                  isYou && state !== "prePact" && state !== "preJoin" && state !== "rest";
+                const cellCountValue = cellCount(m.user_id, col.key);
                 const showStartLine = idx === firstPrePactIndex;
                 return (
                   <div
@@ -431,7 +457,12 @@ export function CheckInGrid({
                           justifyContent: "center",
                         }}
                       >
-                        <CellGlyph state={state} perfect={isPerfect} />
+                        <CellGlyph
+                          state={state}
+                          perfect={isPerfect}
+                          count={cellCountValue}
+                          target={target}
+                        />
                       </button>
                     ) : (
                       <CellGlyph state={state} perfect={isPerfect} />
@@ -450,9 +481,13 @@ export function CheckInGrid({
 function CellGlyph({
   state,
   perfect,
+  count = 0,
+  target = 1,
 }: {
   state: CellState;
   perfect: boolean;
+  count?: number;
+  target?: number;
 }) {
   if (state === "done") {
     return (
@@ -484,6 +519,27 @@ function CellGlyph({
           <path d="M5 12.5l4.5 4.5L19 7" />
         </svg>
       </div>
+    );
+  }
+  if (state === "partial") {
+    const safeTarget = Math.max(1, target);
+    const angle = Math.round(
+      (Math.min(count, safeTarget) / safeTarget) * 360,
+    );
+    return (
+      <div
+        aria-label={`${count} of ${safeTarget} done`}
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: "50%",
+          background: `conic-gradient(var(--accent) 0deg ${angle}deg, transparent ${angle}deg 360deg)`,
+          border: "1.5px dashed var(--line-strong)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      />
     );
   }
   if (state === "pending") {

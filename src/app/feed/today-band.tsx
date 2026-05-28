@@ -10,7 +10,8 @@ export type TodayPact = {
   name: string;
   icon: string | null;
   frequency: "daily" | "weekly";
-  doneThisPeriod: boolean;
+  myCount: number;
+  target: number;
   // ISO timestamp of the most recent nudge I've received in this period for
   // this pact's challenge, or null. Cleared when I check in.
   nudgedAt: string | null;
@@ -51,12 +52,16 @@ const PeriodPill = ({
 };
 
 export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
-  const [optimistic, toggleOptimistic] = useOptimistic<TodayPact[], string>(
+  // Optimistic reducer mirrors the server behaviour: single-target pacts
+  // toggle between 0 and 1, multi-target pacts increment forever.
+  const [optimistic, applyOptimistic] = useOptimistic<TodayPact[], string>(
     pacts,
     (state, pactId) =>
-      state.map((p) =>
-        p.id === pactId ? { ...p, doneThisPeriod: !p.doneThisPeriod } : p,
-      ),
+      state.map((p) => {
+        if (p.id !== pactId) return p;
+        const nextCount = p.target === 1 ? (p.myCount === 0 ? 1 : 0) : p.myCount + 1;
+        return { ...p, myCount: nextCount };
+      }),
   );
   const [, startTransition] = useTransition();
   const [prompt, setPrompt] = useState<NotePrompt | null>(null);
@@ -65,7 +70,7 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
 
   const onTap = (pact: TodayPact) => {
     startTransition(async () => {
-      toggleOptimistic(pact.id);
+      applyOptimistic(pact.id);
       const result = await toggleQuickLog(pact.id);
       if (!result.ok) {
         console.error("toggleQuickLog failed:", result.error);
@@ -101,17 +106,14 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
               <button
                 type="button"
                 onClick={() => onTap(p)}
-                aria-pressed={p.doneThisPeriod}
-                aria-label={
-                  p.doneThisPeriod
-                    ? `Undo ${p.name} for ${p.frequency === "daily" ? "today" : "this week"}`
-                    : `Log ${p.name} for ${p.frequency === "daily" ? "today" : "this week"}`
-                }
+                aria-pressed={p.myCount >= p.target}
+                aria-label={`Log ${p.name} for ${p.frequency === "daily" ? "today" : "this week"}`}
                 className="press flex flex-col items-center gap-1.5"
                 style={{ width: 96, touchAction: "pan-x" }}
               >
                 <CompletionDisk
-                  done={p.doneThisPeriod}
+                  count={p.myCount}
+                  target={p.target}
                   icon={p.icon}
                   nudged={!!p.nudgedAt}
                 />
@@ -415,34 +417,44 @@ function NoteSheet({
 }
 
 function CompletionDisk({
-  done,
+  count,
+  target,
   icon,
   nudged,
 }: {
-  done: boolean;
+  count: number;
+  target: number;
   icon: string | null;
   nudged: boolean;
 }) {
+  const safeTarget = Math.max(1, target);
+  const filled = Math.min(count, safeTarget);
+  const angle = Math.round((filled / safeTarget) * 360);
+  const fullyDone = filled >= safeTarget;
   return (
     <div
       style={{
         width: 76,
         height: 76,
         borderRadius: "50%",
-        background: done ? "var(--accent)" : "var(--card)",
-        border: done ? "none" : "1.5px solid var(--line-strong)",
-        boxShadow: done
+        background: fullyDone
+          ? "var(--accent)"
+          : count > 0
+            ? `conic-gradient(var(--accent) 0deg ${angle}deg, var(--card) ${angle}deg 360deg)`
+            : "var(--card)",
+        border: fullyDone ? "none" : "1.5px solid var(--line-strong)",
+        boxShadow: fullyDone
           ? "0 8px 20px rgba(216, 98, 58, 0.35)"
           : "0 1px 0 rgba(42, 31, 24, 0.04)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: done ? "#fff" : "var(--mute)",
+        color: fullyDone ? "#fff" : "var(--mute)",
         position: "relative",
       }}
       aria-hidden
     >
-      {done ? (
+      {fullyDone ? (
         <svg
           width="34"
           height="34"
@@ -455,23 +467,39 @@ function CompletionDisk({
         >
           <path d="M5 12.5l4.5 4.5L19 7" />
         </svg>
-      ) : icon ? (
-        <span style={{ fontSize: 32, lineHeight: 1 }}>{icon}</span>
       ) : (
-        <svg
-          width="34"
-          height="34"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <span
+          style={{
+            width: 50,
+            height: 50,
+            borderRadius: "50%",
+            background: "var(--card)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--ink)",
+          }}
         >
-          <circle cx="12" cy="12" r="8.5" strokeDasharray="2 4" />
-        </svg>
+          {icon ? (
+            <span style={{ fontSize: 26, lineHeight: 1 }}>{icon}</span>
+          ) : (
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ color: "var(--mute)" }}
+            >
+              <circle cx="12" cy="12" r="8.5" strokeDasharray="2 4" />
+            </svg>
+          )}
+        </span>
       )}
-      {nudged && !done && (
+      {nudged && !fullyDone && (
         <span
           aria-label="You've been nudged"
           style={{

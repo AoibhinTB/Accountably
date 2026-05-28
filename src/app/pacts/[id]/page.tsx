@@ -45,6 +45,7 @@ type Challenge = {
   days_of_week: number[] | null;
   metric_kind: string | null;
   metric_name: string | null;
+  target_per_period: number;
 };
 
 const stickerForName = (name: string) =>
@@ -83,7 +84,7 @@ export default async function PactPage({
     supabase
       .from("groups")
       .select(
-        "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week, metric_kind, metric_name)",
+        "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week, metric_kind, metric_name, target_per_period)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -185,6 +186,16 @@ export default async function PactPage({
           (c) => c.user_id === userData.user!.id,
         ) ?? null
       : null;
+
+  // Count of my completions in the current period — drives the progressive
+  // fill on PactCircle for multi-target pacts.
+  const myPeriodCount =
+    challenge && userData.user
+      ? (periodCompletions ?? []).filter(
+          (c) => c.user_id === userData.user!.id,
+        ).length
+      : 0;
+  const challengeTarget = Math.max(1, challenge?.target_per_period ?? 1);
 
   // Latest nudge per recipient (anyone → recipient) for this period. The
   // nudges query is sorted desc, so the first row we see for a recipient is
@@ -310,6 +321,7 @@ export default async function PactPage({
                     end_date: challenge.end_date,
                     metric_kind: challenge.metric_kind,
                     metric_name: challenge.metric_name,
+                    target_per_period: challengeTarget,
                   }}
                   isCreator={isCreator}
                   reminder={{
@@ -434,7 +446,8 @@ export default async function PactPage({
                 <PactCircle
                   pactId={pact.id}
                   icon={pact.icon}
-                  initialDone={!!myCurrentCompletion}
+                  initialCount={myPeriodCount}
+                  target={challengeTarget}
                   periodLabel={periodLabel}
                 />
               }
@@ -444,7 +457,8 @@ export default async function PactPage({
               <PactCircle
                 pactId={pact.id}
                 icon={pact.icon}
-                initialDone={!!myCurrentCompletion}
+                initialCount={myPeriodCount}
+                target={challengeTarget}
                 periodLabel={periodLabel}
               />
             </div>
@@ -590,6 +604,7 @@ export default async function PactPage({
               frequency: challenge.frequency,
               days_of_week: challenge.days_of_week,
               start_date: challenge.start_date,
+              target_per_period: challengeTarget,
             }}
             members={(members ?? []).map((m) => ({
               user_id: m.user_id,

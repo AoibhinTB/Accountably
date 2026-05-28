@@ -35,6 +35,12 @@ const parseMetricValue = (
   return n;
 };
 
+const parseTarget = (raw: FormDataEntryValue | null): number => {
+  const n = typeof raw === "string" ? parseInt(raw, 10) : NaN;
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(24, Math.max(1, n));
+};
+
 const parseMetric = (
   kindRaw: FormDataEntryValue | null,
   nameRaw: FormDataEntryValue | null,
@@ -81,6 +87,7 @@ export async function createPact(formData: FormData) {
     formData.get("metric_kind"),
     formData.get("metric_name"),
   );
+  const targetPerPeriod = parseTarget(formData.get("target_per_period"));
 
   const { data, error } = await supabase.rpc("create_pact", {
     p_name: name,
@@ -98,19 +105,18 @@ export async function createPact(formData: FormData) {
     );
   }
 
-  // Metric fields are not in the create_pact RPC signature, so we set them
-  // with a follow-up update on the just-created active challenge for this
-  // group. Skipped when the pact opts out of metrics.
-  if (metric.metric_kind) {
-    await supabase
-      .from("challenges")
-      .update({
-        metric_kind: metric.metric_kind,
-        metric_name: metric.metric_name,
-      })
-      .eq("group_id", data)
-      .eq("archived", false);
-  }
+  // Metric + target_per_period are not in the create_pact RPC signature, so
+  // we set them with a follow-up update on the just-created active challenge
+  // for this group.
+  await supabase
+    .from("challenges")
+    .update({
+      metric_kind: metric.metric_kind,
+      metric_name: metric.metric_name,
+      target_per_period: targetPerPeriod,
+    })
+    .eq("group_id", data)
+    .eq("archived", false);
 
   revalidatePath("/pacts");
   revalidatePath("/feed");
@@ -156,6 +162,7 @@ export async function updatePact(formData: FormData) {
     formData.get("metric_kind"),
     formData.get("metric_name"),
   );
+  const targetPerPeriod = parseTarget(formData.get("target_per_period"));
 
   const { data: groupUpdate, error: groupErr } = await supabase
     .from("groups")
@@ -182,6 +189,7 @@ export async function updatePact(formData: FormData) {
       days_of_week: daysOfWeek,
       metric_kind: metric.metric_kind,
       metric_name: metric.metric_name,
+      target_per_period: targetPerPeriod,
     })
     .eq("group_id", pactId)
     .eq("archived", false);
@@ -312,7 +320,7 @@ export async function toggleQuickLog(
 
   const { data: challenge, error: chErr } = await supabase
     .from("challenges")
-    .select("id, frequency")
+    .select("id, frequency, target_per_period")
     .eq("group_id", pactId)
     .eq("archived", false)
     .maybeSingle();
@@ -324,27 +332,33 @@ export async function toggleQuickLog(
     return { ok: false, error: "Unsupported frequency" };
   }
 
+  const target = Math.max(1, challenge.target_per_period ?? 1);
   const periodStart = startOfPeriodUTC(challenge.frequency);
 
-  const { data: existing } = await supabase
-    .from("completions")
-    .select("id")
-    .eq("challenge_id", challenge.id)
-    .eq("user_id", user.id)
-    .gte("completed_at", periodStart.toISOString())
-    .order("completed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (existing) {
-    const { error: delErr } = await supabase
+  // Multi-target pacts are append-only via this action: each tap always
+  // inserts a new completion. Single-target pacts keep the toggle semantics
+  // (one row per period, tap-again removes).
+  if (target === 1) {
+    const { data: existing } = await supabase
       .from("completions")
-      .delete()
-      .eq("id", existing.id);
-    if (delErr) return { ok: false, error: delErr.message };
-    revalidatePath("/feed");
-    revalidatePath(`/pacts/${pactId}`);
-    return { ok: true, done: false };
+      .select("id")
+      .eq("challenge_id", challenge.id)
+      .eq("user_id", user.id)
+      .gte("completed_at", periodStart.toISOString())
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      const { error: delErr } = await supabase
+        .from("completions")
+        .delete()
+        .eq("id", existing.id);
+      if (delErr) return { ok: false, error: delErr.message };
+      revalidatePath("/feed");
+      revalidatePath(`/pacts/${pactId}`);
+      return { ok: true, done: false };
+    }
   }
 
   const { data: inserted, error: insErr } = await supabase
@@ -465,7 +479,7 @@ export async function togglePeriodCompletion(
 
   const { data: challenge, error: chErr } = await supabase
     .from("challenges")
-    .select("id, group_id, frequency, start_date")
+    .select("id, group_id, frequency, start_date, target_per_period")
     .eq("group_id", pactId)
     .eq("archived", false)
     .maybeSingle();
@@ -476,6 +490,7 @@ export async function togglePeriodCompletion(
     return { ok: false, error: "Unsupported frequency" };
   }
 
+  const targetPerPeriod = Math.max(1, challenge.target_per_period ?? 1);
   const target = new Date(`${dateISO}T12:00:00Z`);
   const today = new Date();
   today.setUTCHours(23, 59, 59, 999);
@@ -489,20 +504,25 @@ export async function togglePeriodCompletion(
     (challenge.frequency === "daily" ? 1 : 7) * 24 * 60 * 60 * 1000;
   const periodEnd = new Date(periodStart.getTime() + stepMs);
 
-  // Delete-if-exists: all of my completions in that period.
-  const { data: deleted } = await supabase
-    .from("completions")
-    .delete()
-    .eq("challenge_id", challenge.id)
-    .eq("user_id", user.id)
-    .gte("completed_at", periodStart.toISOString())
-    .lt("completed_at", periodEnd.toISOString())
-    .select("id");
+  // Single-target pacts retain the legacy toggle behaviour: tapping a filled
+  // grid cell deletes every completion in that period. Multi-target pacts
+  // are append-only via the grid; removing past entries happens in the
+  // notes-history list (which has a 24h delete window).
+  if (targetPerPeriod === 1) {
+    const { data: deleted } = await supabase
+      .from("completions")
+      .delete()
+      .eq("challenge_id", challenge.id)
+      .eq("user_id", user.id)
+      .gte("completed_at", periodStart.toISOString())
+      .lt("completed_at", periodEnd.toISOString())
+      .select("id");
 
-  if (deleted && deleted.length > 0) {
-    revalidatePath(`/pacts/${pactId}`);
-    revalidatePath("/feed");
-    return { ok: true, done: false };
+    if (deleted && deleted.length > 0) {
+      revalidatePath(`/pacts/${pactId}`);
+      revalidatePath("/feed");
+      return { ok: true, done: false };
+    }
   }
 
   const { error } = await supabase
@@ -536,6 +556,48 @@ export async function backdateCompletion(
 // the edit affordance after the window so users do not see a button that
 // returns an error.
 const NOTE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Hard-delete a completion the caller authored, within the same 24h
+// window used for note edits. RLS limits the delete to own rows; the
+// explicit fetch lets us return a friendlier error if the row is too old.
+export async function deleteCompletion(
+  completionId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!completionId) return { ok: false, error: "Missing completion" };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not authenticated" };
+
+  const { data: existing } = await supabase
+    .from("completions")
+    .select("completed_at, user_id, challenge_id")
+    .eq("id", completionId)
+    .maybeSingle();
+  if (!existing) return { ok: false, error: "Not authorized" };
+  if (existing.user_id !== user.id) {
+    return { ok: false, error: "Not authorized" };
+  }
+  const ageMs = Date.now() - new Date(existing.completed_at).getTime();
+  if (ageMs > NOTE_EDIT_WINDOW_MS) {
+    return {
+      ok: false,
+      error: "check-ins can only be deleted within 24 hours",
+    };
+  }
+
+  const { error } = await supabase
+    .from("completions")
+    .delete()
+    .eq("id", completionId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/feed");
+  revalidatePath("/pacts");
+  return { ok: true };
+}
 
 // Client-callable variant of saveCompletionNote — no redirect, used by the
 // Feed today-band's post-log note sheet and the per-pact notes history.

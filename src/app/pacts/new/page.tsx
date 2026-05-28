@@ -6,6 +6,7 @@ import { Chevron } from "@/components/ui/chevron";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { MetricPicker } from "@/components/ui/metric-picker";
+import { TargetPicker } from "@/components/ui/target-picker";
 import { Squiggle } from "@/components/ui/squiggle";
 import { createPact } from "../actions";
 
@@ -105,6 +106,8 @@ export default async function NewPactPage({
         </label>
 
         <HowOftenPicker />
+
+        <TargetPicker />
 
         <MetricPicker />
 
