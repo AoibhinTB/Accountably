@@ -76,6 +76,7 @@ export function PactCircle({
           borderRadius: "50%",
           background: fullyDone ? "var(--accent)" : "var(--card)",
           border: fullyDone ? "none" : "1.5px solid var(--line-strong)",
+          boxSizing: "border-box",
           boxShadow: fullyDone
             ? "0 8px 24px rgba(216, 98, 58, 0.38)"
             : "0 2px 0 rgba(42, 31, 24, 0.06)",
