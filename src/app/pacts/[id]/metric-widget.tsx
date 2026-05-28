@@ -56,9 +56,14 @@ function formatMetric(
 ): { number: string; unit: string } {
   if (kind === "minutes") {
     if (total < 60) return { number: String(total), unit: "min" };
-    const h = Math.floor(total / 60);
-    const m = total % 60;
-    return { number: `${h}h${m > 0 ? ` ${m}m` : ""}`, unit: "" };
+    const totalH = Math.floor(total / 60);
+    const remM = total % 60;
+    if (totalH < 24) {
+      return { number: `${totalH}h${remM > 0 ? ` ${remM}m` : ""}`, unit: "" };
+    }
+    const d = Math.floor(totalH / 24);
+    const remH = totalH % 24;
+    return { number: `${d}d${remH > 0 ? ` ${remH}h` : ""}`, unit: "" };
   }
   return { number: total.toLocaleString(), unit: name ?? "units" };
 }

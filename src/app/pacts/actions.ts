@@ -531,10 +531,16 @@ export async function backdateCompletion(
   return { ok: true };
 }
 
+// Edit window for notes: 24 hours after completed_at. The server enforces
+// this so direct API calls cannot bypass the limit; the client also hides
+// the edit affordance after the window so users do not see a button that
+// returns an error.
+const NOTE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 // Client-callable variant of saveCompletionNote — no redirect, used by the
-// Feed today-band's post-log note sheet so the user stays on /feed. Passing
-// metricValue as undefined leaves the column untouched; passing null clears
-// it; passing a number sets it.
+// Feed today-band's post-log note sheet and the per-pact notes history.
+// Passing metricValue as undefined leaves the column untouched; passing
+// null clears it; passing a number sets it.
 export async function saveNoteInline(
   completionId: string,
   note: string | null,
@@ -543,6 +549,23 @@ export async function saveNoteInline(
   if (!completionId) return { ok: false, error: "Missing completion" };
 
   const supabase = await createClient();
+
+  // Verify the completion exists and is still within the edit window. RLS
+  // already scopes by ownership (only the author can update), so a missing
+  // row here means either not-found or not-authorized.
+  const { data: existing } = await supabase
+    .from("completions")
+    .select("completed_at")
+    .eq("id", completionId)
+    .maybeSingle();
+  if (!existing) return { ok: false, error: "Not authorized" };
+  const ageMs = Date.now() - new Date(existing.completed_at).getTime();
+  if (ageMs > NOTE_EDIT_WINDOW_MS) {
+    return {
+      ok: false,
+      error: "notes can only be edited within 24 hours of check-in",
+    };
+  }
 
   const update: Record<string, string | number | null> = {
     note: note ?? null,

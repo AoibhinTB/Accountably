@@ -10,6 +10,7 @@ import {
   timeAgo,
 } from "@/lib/period";
 import { TodayBand, type TodayPact } from "./today-band";
+import { MyMetricTile } from "./my-metric-tile";
 import { NotificationsBanner } from "@/components/notifications-banner";
 
 type Frequency = "daily" | "weekly";
@@ -43,6 +44,7 @@ type CompletionRow = {
   user_id: string;
   completed_at: string;
   note: string | null;
+  metric_value: number | null;
   profiles: { display_name: string } | null;
 };
 
@@ -142,7 +144,7 @@ export default async function FeedPage() {
       ? supabase
           .from("completions")
           .select(
-            "id, challenge_id, user_id, completed_at, note, profiles(display_name)",
+            "id, challenge_id, user_id, completed_at, note, metric_value, profiles(display_name)",
           )
           .in("challenge_id", challengeIds)
           .gte("completed_at", lookback30.toISOString())
@@ -253,7 +255,27 @@ export default async function FeedPage() {
     (c) => new Date(c.completed_at) >= weekStart,
   );
   const weekCheckIns = weekCompletions.length;
-  const weekNotes = weekCompletions.filter((c) => c.note).length;
+
+  // Per-pact metric totals for the current user this week. Skips pacts with
+  // no metric configured. Drives the cycling tile in the this-week stats
+  // row so the user can flip through "minutes meditated", "pages read", etc.
+  const myMetrics = myPacts
+    .filter((p) => p.challenge.metric_kind)
+    .map((p) => {
+      const total = weekCompletions
+        .filter(
+          (c) =>
+            c.challenge_id === p.challenge.id && c.user_id === user.id,
+        )
+        .reduce((acc, c) => acc + (c.metric_value ?? 0), 0);
+      return {
+        pactId: p.id,
+        pactName: p.name,
+        metricKind: p.challenge.metric_kind as "count" | "minutes",
+        metricName: p.challenge.metric_name,
+        total,
+      };
+    });
 
   // Perfect days = (pact, day) where every member required that day checked
   // in. Sum across pacts. Daily pacts only.
@@ -484,7 +506,6 @@ export default async function FeedPage() {
         <div className="grid grid-cols-3 gap-2.5">
           {[
             { label: "check-ins", value: weekCheckIns },
-            { label: "notes", value: weekNotes },
             { label: "perfect days", value: perfectDays },
           ].map((s) => (
             <div
@@ -509,6 +530,7 @@ export default async function FeedPage() {
               <div className="label mt-1.5">{s.label}</div>
             </div>
           ))}
+          <MyMetricTile metrics={myMetrics} />
         </div>
       </section>
 

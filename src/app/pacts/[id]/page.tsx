@@ -15,6 +15,7 @@ import { CheckInGrid } from "./check-in-grid";
 import { EditPactDialog } from "./edit-pact-dialog";
 import { IconEditTrigger } from "./icon-edit-trigger";
 import { MetricSideBySide } from "./metric-widget";
+import { NotesHistory } from "./notes-history";
 import { NudgeButton } from "./nudge-button";
 import { PactCircle } from "./pact-circle";
 import { saveCompletionNote } from "../actions";
@@ -203,6 +204,26 @@ export default async function PactPage({
       user_id: m.user_id,
       name: m.profiles?.display_name ?? "unknown",
       latestNudge: latestNudgeByRecipient.get(m.user_id) ?? null,
+    }));
+
+  // Notes history below the grid: every completion in this pact that has a
+  // non-empty note, newest first. Display names come from the members list
+  // so we do not have to refetch profiles per row.
+  const nameByUserId = new Map(
+    (members ?? []).map((m) => [
+      m.user_id,
+      m.profiles?.display_name ?? "unknown",
+    ]),
+  );
+  const notesForHistory = (recentCompletions ?? [])
+    .filter((c) => c.note && c.note.trim().length > 0)
+    .map((c) => ({
+      id: c.id,
+      user_id: c.user_id,
+      display_name: nameByUserId.get(c.user_id) ?? "unknown",
+      completed_at: c.completed_at,
+      note: c.note as string,
+      metric_value: c.metric_value,
     }));
 
   // Group streak — consecutive periods where every expected member checked in.
@@ -404,7 +425,7 @@ export default async function PactPage({
         </section>
       )}
 
-      {challenge && myCurrentCompletion && (
+      {challenge && myCurrentCompletion && !myCurrentCompletion.note && (
         <section className="px-5 pt-3 flex justify-center">
           <details className="group">
             <summary
@@ -435,9 +456,7 @@ export default async function PactPage({
               >
                 <path d="M12 5v14M5 12h14" />
               </svg>
-              <span>
-                {myCurrentCompletion.note ? "edit note" : "add a note"}
-              </span>
+              <span>add a note</span>
             </summary>
             <form
               action={saveCompletionNote}
@@ -556,6 +575,17 @@ export default async function PactPage({
             }))}
           />
         </section>
+      )}
+
+      {challenge && notesForHistory.length > 0 && (
+        <NotesHistory
+          notes={notesForHistory}
+          currentUserId={currentUserId}
+          metricKind={
+            (challenge.metric_kind as "count" | "minutes" | null) ?? null
+          }
+          metricName={challenge.metric_name}
+        />
       )}
 
       {challenge && pendingToNudge.length > 0 && (
