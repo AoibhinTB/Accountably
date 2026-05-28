@@ -1,5 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPushToUser, sendPushToUsers } from "@/lib/push/send";
+
+// All reads here use the admin client because notifyNudge / notifyCompletion
+// are invoked from `after()` after the response has shipped. In that context
+// the cookie-bound auth client is unreliable (the user session may already
+// be released), so RLS-gated reads of OTHER users' rows can come back empty.
+// The admin client bypasses RLS and gives us the same data deterministically.
 
 // Sends "X nudged you" to the recipient. Looks up the sender's display
 // name and the pact name so the push has useful context. `tag` collapses
@@ -11,7 +17,7 @@ export async function notifyNudge(args: {
   challengeId: string;
   periodStartKey: string;
 }): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const [{ data: sender }, { data: group }, { data: recipient }] = await Promise.all([
     supabase
       .from("profiles")
@@ -40,15 +46,12 @@ export async function notifyNudge(args: {
   });
 }
 
-// Sends "X checked in" to every pact member except the actor. RLS lets
-// the cookie-bound client read group_members for any pact the user is in,
-// so no admin client needed here — sendPushToUser is the one that needs
-// admin (to read other users' push_subscriptions).
+// Sends "X checked in" to every pact member except the actor.
 export async function notifyCompletion(args: {
   actorUserId: string;
   pactId: string;
 }): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const [{ data: actor }, { data: group }, { data: members }] = await Promise.all([
     supabase
       .from("profiles")
@@ -67,9 +70,8 @@ export async function notifyCompletion(args: {
     .filter((id) => id && id !== args.actorUserId);
   if (candidateIds.length === 0) return;
 
-  // Filter to recipients who actually want check-in pushes. Missing pref row
-  // would already block the join above, so a present row with notif_checkins
-  // false is the only opt-out path we need to handle.
+  // Filter to recipients who want check-in pushes. notif_checkins defaults
+  // to true at the column level, so absent / true / null all mean opt-in.
   const { data: prefs } = await supabase
     .from("profiles")
     .select("id, notif_checkins")

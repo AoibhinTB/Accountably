@@ -367,7 +367,7 @@ export default async function PactPage({
       )}
 
       {challenge && (
-        <section className="px-5 pt-6">
+        <section className="pt-6">
           {challenge.metric_kind ? (
             <MetricSideBySide
               metricKind={challenge.metric_kind as "count" | "minutes"}
@@ -392,7 +392,7 @@ export default async function PactPage({
               }
             />
           ) : (
-            <div className="flex justify-center">
+            <div className="px-5 flex justify-center">
               <PactCircle
                 pactId={pact.id}
                 icon={pact.icon}

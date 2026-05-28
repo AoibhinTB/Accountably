@@ -93,7 +93,7 @@ export function MetricInline({
     <button
       type="button"
       onClick={onCyclePeriod}
-      aria-label={`Period: ${PERIOD_LABEL[period]}. Tap to change.`}
+      aria-label={`Group total for ${PERIOD_LABEL[period]}. Tap to change period.`}
       className="press text-left"
       style={{
         background: "transparent",
@@ -104,7 +104,13 @@ export function MetricInline({
         minWidth: 0,
       }}
     >
-      <div className="flex items-baseline gap-1.5">
+      <div
+        className="label"
+        style={{ fontSize: 9, color: "var(--accent)", letterSpacing: "0.12em" }}
+      >
+        group total
+      </div>
+      <div className="flex items-baseline gap-1.5 mt-0.5">
         <span
           style={{
             fontFamily: "var(--font-display)",
@@ -173,7 +179,7 @@ export function MetricBreakdown({
     .sort((a, b) => b.total - a.total);
 
   return (
-    <div className="mt-2 flex flex-col items-end">
+    <div className="mt-2 px-5 flex flex-col items-end">
       <button
         type="button"
         onClick={onToggle}
@@ -258,7 +264,7 @@ export function MetricSideBySide({
   const [showBreakdown, setShowBreakdown] = useState(false);
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-evenly">
         {circle}
         <div
           className="flex items-center px-4"
