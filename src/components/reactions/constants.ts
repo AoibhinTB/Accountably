@@ -1,4 +1,17 @@
-export const CURATED_EMOJIS = ["👏", "🔥", "💪", "❤️", "😂", "🙌"] as const;
+// Two rough rows: the first reads more energetic / celebratory, the second
+// reads softer / supportive so people can match the tone of the note.
+export const CURATED_EMOJIS = [
+  "👏",
+  "🔥",
+  "💪",
+  "🙌",
+  "😂",
+  "❤️",
+  "🙏",
+  "✨",
+  "🌸",
+  "🫶",
+] as const;
 
 export type ReactionRow = { emoji: string; user_id: string };
 

@@ -114,7 +114,7 @@ export function ReactionBar({
           <span aria-hidden>+</span>
         </summary>
         <div
-          className="absolute right-0 top-full z-20 mt-2 flex gap-1"
+          className="absolute right-0 top-full z-20 mt-2 grid grid-cols-5 gap-1"
           style={{
             background: "var(--card)",
             border: "1px solid var(--line)",
@@ -136,12 +136,12 @@ export function ReactionBar({
                 className="press"
                 style={{
                   display: "flex",
-                  width: 40,
-                  height: 40,
+                  width: 36,
+                  height: 36,
                   alignItems: "center",
                   justifyContent: "center",
                   borderRadius: "var(--radius-sm)",
-                  fontSize: 20,
+                  fontSize: 18,
                   background: hasReacted ? "var(--accent-soft)" : "transparent",
                   border: hasReacted
                     ? "1px solid var(--accent)"
