@@ -44,7 +44,7 @@ const cadenceLabel = (
 type MemberRow = {
   group_id: string;
   user_id: string;
-  profiles: { display_name: string } | null;
+  profiles: { display_name: string; avatar_color_index: number | null } | null;
 };
 
 const stickerForName = (name: string) =>
@@ -84,7 +84,9 @@ export default async function PactsPage({
   const { data: allMembers } = myPactIds.length
     ? await supabase
         .from("group_members")
-        .select("group_id, user_id, profiles(display_name)")
+        .select(
+          "group_id, user_id, profiles(display_name, avatar_color_index)",
+        )
         .in("group_id", myPactIds)
         .returns<MemberRow[]>()
     : { data: [] as MemberRow[] };
@@ -192,6 +194,7 @@ export default async function PactsPage({
                         <Avatar
                           key={m.user_id}
                           name={m.profiles?.display_name ?? "?"}
+                          colorIndex={m.profiles?.avatar_color_index ?? null}
                           size={22}
                         />
                       ))}

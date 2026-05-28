@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ConfirmForm } from "@/components/confirm-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
 import { Chevron } from "@/components/ui/chevron";
 import { Squiggle } from "@/components/ui/squiggle";
 import { currentStreak, type Frequency } from "@/lib/period";
 import { EditProfileSheet } from "./edit-profile-sheet";
-import { deleteAccount } from "./profile-actions";
 
 const COMMIT_SHA =
   process.env.NEXT_PUBLIC_BUILD_SHA?.slice(0, 7) ?? "dev";
@@ -307,6 +305,7 @@ export default async function YouPage() {
           {[
             { label: "notifications", href: "/you/notifications" },
             { label: "privacy", href: "/privacy" },
+            { label: "settings", href: "/you/settings" },
             { label: "about accountably", href: "/about" },
           ].map((row, i, arr) => (
             <li
@@ -353,30 +352,6 @@ export default async function YouPage() {
           sign out
         </SubmitButton>
       </form>
-
-      <ConfirmForm
-        action={deleteAccount}
-        message="Delete your account? This permanently removes your data — completions, notes, reactions, nudges, push subscriptions — across every pact. This cannot be undone."
-        className="mt-3"
-      >
-        <SubmitButton
-          pendingLabel="deleting…"
-          className="w-full"
-          style={{
-            minHeight: 44,
-            background: "transparent",
-            color: "#9C1F1F",
-            borderRadius: "var(--radius)",
-            border: "1.5px solid rgba(156, 31, 31, 0.4)",
-            fontFamily: "var(--font-stat-mono)",
-            fontSize: 12,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-          }}
-        >
-          delete account
-        </SubmitButton>
-      </ConfirmForm>
 
       <div
         className="label mt-8 text-center"

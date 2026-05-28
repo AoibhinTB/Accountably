@@ -28,9 +28,7 @@ export default function PrivacyPage() {
           lineHeight: 1.5,
         }}
       >
-        <p>
-          plain english — no dark patterns. last updated 2026-05-28.
-        </p>
+        <p>last updated 2026-05-28.</p>
 
         <h2
           className="h-display mt-6"
@@ -103,28 +101,6 @@ export default function PrivacyPage() {
           notes are removed too.
         </p>
 
-        <h2
-          className="h-display mt-6"
-          style={{ fontSize: 22, lineHeight: 1.1, fontStyle: "italic" }}
-        >
-          contact
-        </h2>
-        <p className="mt-2">
-          questions, requests for data export, anything else:{" "}
-          <a
-            href="mailto:davidsh@tcd.ie"
-            style={{
-              color: "var(--ink)",
-              textDecoration: "underline",
-              textDecorationColor: "var(--accent)",
-              textDecorationThickness: 1.5,
-              textUnderlineOffset: 3,
-            }}
-          >
-            davidsh@tcd.ie
-          </a>
-          .
-        </p>
       </div>
     </main>
   );

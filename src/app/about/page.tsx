@@ -39,27 +39,9 @@ export default function AboutPage() {
         </p>
 
         <p className="mt-4">
-          built by{" "}
-          <a
-            href="mailto:davidsh@tcd.ie"
-            style={{
-              color: "var(--ink)",
-              textDecoration: "underline",
-              textDecorationColor: "var(--accent)",
-              textDecorationThickness: 1.5,
-              textUnderlineOffset: 3,
-            }}
-          >
-            david @ tcd
-          </a>
-          . runs on next.js and supabase. push notifications via web push and
-          a tiny external cron. no analytics, no ad tracking, no third-party
+          runs on next.js and supabase. push notifications via web push and a
+          tiny external cron. no analytics, no ad tracking, no third-party
           embeds in the app.
-        </p>
-
-        <p className="mt-4">
-          feedback, bug reports, feature requests — same email. no support
-          team, but every message is read.
         </p>
       </div>
 

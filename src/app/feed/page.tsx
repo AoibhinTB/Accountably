@@ -37,7 +37,7 @@ type MemberRow = {
   group_id: string;
   user_id: string;
   joined_at: string;
-  profiles: { display_name: string } | null;
+  profiles: { display_name: string; avatar_color_index: number | null } | null;
 };
 
 type CompletionRow = {
@@ -47,7 +47,7 @@ type CompletionRow = {
   completed_at: string;
   note: string | null;
   metric_value: number | null;
-  profiles: { display_name: string } | null;
+  profiles: { display_name: string; avatar_color_index: number | null } | null;
   reactions: { emoji: string; user_id: string }[] | null;
 };
 
@@ -77,7 +77,7 @@ export default async function FeedPage() {
   const [{ data: profile }, { data: pactRows }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("display_name")
+      .select("display_name, avatar_color_index")
       .eq("id", user.id)
       .maybeSingle(),
     supabase
@@ -139,7 +139,9 @@ export default async function FeedPage() {
     myPactIds.length
       ? supabase
           .from("group_members")
-          .select("group_id, user_id, joined_at, profiles(display_name)")
+          .select(
+            "group_id, user_id, joined_at, profiles(display_name, avatar_color_index)",
+          )
           .in("group_id", myPactIds)
           .returns<MemberRow[]>()
       : Promise.resolve({ data: [] as MemberRow[] }),
@@ -147,7 +149,7 @@ export default async function FeedPage() {
       ? supabase
           .from("completions")
           .select(
-            "id, challenge_id, user_id, completed_at, note, metric_value, profiles(display_name), reactions(emoji, user_id)",
+            "id, challenge_id, user_id, completed_at, note, metric_value, profiles(display_name, avatar_color_index), reactions(emoji, user_id)",
           )
           .in("challenge_id", challengeIds)
           .gte("completed_at", lookback30.toISOString())
@@ -244,6 +246,7 @@ export default async function FeedPage() {
       return {
         id: c.id,
         userName: c.profiles?.display_name ?? "Unknown",
+        userColorIndex: c.profiles?.avatar_color_index ?? null,
         completedAt: c.completed_at,
         note: c.note as string,
         pactId: pact?.id,
@@ -416,7 +419,12 @@ export default async function FeedPage() {
           <h1 className="h-display m-0" style={{ fontSize: 40, lineHeight: 1 }}>
             <span style={{ fontStyle: "italic" }}>{greeting()}</span> {firstName}
           </h1>
-          <Avatar name={profile?.display_name ?? "?"} size={34} ring />
+          <Avatar
+            name={profile?.display_name ?? "?"}
+            size={34}
+            colorIndex={profile?.avatar_color_index ?? null}
+            ring
+          />
         </div>
         <Squiggle width={84} className="mt-1" />
       </header>
@@ -456,7 +464,11 @@ export default async function FeedPage() {
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <Avatar name={n.userName} size={32} />
+                  <Avatar
+                    name={n.userName}
+                    size={32}
+                    colorIndex={n.userColorIndex}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline gap-x-1.5">
                       <span style={{ fontWeight: 600, fontSize: 15 }}>

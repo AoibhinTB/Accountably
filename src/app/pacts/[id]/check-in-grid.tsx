@@ -10,6 +10,7 @@ type Member = {
   user_id: string;
   joined_at: string;
   display_name: string;
+  avatar_color_index: number | null;
 };
 
 type Completion = {
@@ -357,7 +358,11 @@ export function CheckInGrid({
                   zIndex: 1,
                 }}
               >
-                <Avatar name={m.display_name} size={24} />
+                <Avatar
+                  name={m.display_name}
+                  colorIndex={m.avatar_color_index}
+                  size={24}
+                />
                 <span
                   className="truncate"
                   style={{

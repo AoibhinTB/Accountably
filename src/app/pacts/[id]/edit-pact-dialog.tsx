@@ -22,6 +22,7 @@ type Member = {
   user_id: string;
   joined_at: string;
   display_name: string;
+  avatar_color_index: number | null;
 };
 
 type Props = {
@@ -410,7 +411,11 @@ export function EditPactDialog({
                           i < arr.length - 1 ? "1px solid var(--line)" : "none",
                       }}
                     >
-                      <Avatar name={m.display_name} size={34} />
+                      <Avatar
+                        name={m.display_name}
+                        colorIndex={m.avatar_color_index}
+                        size={34}
+                      />
                       <div className="flex-1 min-w-0">
                         <div style={{ fontWeight: 500, fontSize: 15 }}>
                           {m.display_name}

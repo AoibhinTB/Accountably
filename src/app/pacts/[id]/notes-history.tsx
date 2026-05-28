@@ -11,6 +11,7 @@ type Note = {
   id: string;
   user_id: string;
   display_name: string;
+  avatar_color_index: number | null;
   completed_at: string;
   note: string;
   metric_value: number | null;
@@ -136,7 +137,11 @@ function NoteRow({
         }}
       >
         <div className="flex items-center gap-3 mb-2">
-          <Avatar name={note.display_name} size={28} />
+          <Avatar
+            name={note.display_name}
+            colorIndex={note.avatar_color_index}
+            size={28}
+          />
           <div className="flex-1 min-w-0">
             <div style={{ fontWeight: 500, fontSize: 14 }}>
               {note.display_name}

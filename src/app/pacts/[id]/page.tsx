@@ -29,6 +29,7 @@ type Member = {
   profiles: {
     display_name: string;
     avatar_url: string | null;
+    avatar_color_index: number | null;
   } | null;
 };
 
@@ -122,7 +123,7 @@ export default async function PactPage({
   const membersPromise = supabase
     .from("group_members")
     .select(
-      "user_id, joined_at, reminder_time, reminder_timezone, profiles(display_name, avatar_url)",
+      "user_id, joined_at, reminder_time, reminder_timezone, profiles(display_name, avatar_url, avatar_color_index)",
     )
     .eq("group_id", id)
     .order("joined_at", { ascending: true })
@@ -206,29 +207,37 @@ export default async function PactPage({
     .map((m) => ({
       user_id: m.user_id,
       name: m.profiles?.display_name ?? "unknown",
+      colorIndex: m.profiles?.avatar_color_index ?? null,
       latestNudge: latestNudgeByRecipient.get(m.user_id) ?? null,
     }));
 
   // Notes history below the grid: every completion in this pact that has a
   // non-empty note, newest first. Display names come from the members list
   // so we do not have to refetch profiles per row.
-  const nameByUserId = new Map(
+  const profileByUserId = new Map(
     (members ?? []).map((m) => [
       m.user_id,
-      m.profiles?.display_name ?? "unknown",
+      {
+        display_name: m.profiles?.display_name ?? "unknown",
+        avatar_color_index: m.profiles?.avatar_color_index ?? null,
+      },
     ]),
   );
   const notesForHistory = (recentCompletions ?? [])
     .filter((c) => c.note && c.note.trim().length > 0)
-    .map((c) => ({
-      id: c.id,
-      user_id: c.user_id,
-      display_name: nameByUserId.get(c.user_id) ?? "unknown",
-      completed_at: c.completed_at,
-      note: c.note as string,
-      metric_value: c.metric_value,
-      reactions: summarizeReactions(c.reactions ?? [], currentUserId),
-    }))
+    .map((c) => {
+      const profile = profileByUserId.get(c.user_id);
+      return {
+        id: c.id,
+        user_id: c.user_id,
+        display_name: profile?.display_name ?? "unknown",
+        avatar_color_index: profile?.avatar_color_index ?? null,
+        completed_at: c.completed_at,
+        note: c.note as string,
+        metric_value: c.metric_value,
+        reactions: summarizeReactions(c.reactions ?? [], currentUserId),
+      };
+    })
     .sort(
       (a, b) =>
         new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime(),
@@ -311,6 +320,7 @@ export default async function PactPage({
                     user_id: m.user_id,
                     joined_at: m.joined_at,
                     display_name: m.profiles?.display_name ?? "unknown",
+                    avatar_color_index: m.profiles?.avatar_color_index ?? null,
                   }))}
                   createdById={pact.created_by}
                   inviteUrl={inviteUrl}
@@ -363,6 +373,7 @@ export default async function PactPage({
                   <Avatar
                     key={m.user_id}
                     name={m.profiles?.display_name ?? "?"}
+                    colorIndex={m.profiles?.avatar_color_index ?? null}
                     size={22}
                   />
                 ))}
@@ -584,6 +595,7 @@ export default async function PactPage({
               user_id: m.user_id,
               joined_at: m.joined_at,
               display_name: m.profiles?.display_name ?? "unknown",
+              avatar_color_index: m.profiles?.avatar_color_index ?? null,
             }))}
             completions={(recentCompletions ?? []).map((c) => ({
               user_id: c.user_id,
@@ -625,7 +637,7 @@ export default async function PactPage({
                     i < arr.length - 1 ? "1px solid var(--line)" : "none",
                 }}
               >
-                <Avatar name={m.name} size={36} />
+                <Avatar name={m.name} colorIndex={m.colorIndex} size={36} />
                 <div className="min-w-0 flex-1">
                   <div style={{ fontWeight: 500, fontSize: 15 }}>{m.name}</div>
                   {m.latestNudge && (
