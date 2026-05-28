@@ -94,19 +94,19 @@ export function ReactionBar({
 
       <details
         className="absolute right-3 bottom-0 z-10"
-        style={{ transform: "translateY(50%)" }}
+        style={{ transform: "translateY(30%)" }}
       >
         <summary
           aria-label="Add reaction"
           className="press flex cursor-pointer list-none items-center justify-center [&::-webkit-details-marker]:hidden"
           style={{
-            width: 26,
-            height: 26,
+            width: 22,
+            height: 22,
             borderRadius: "50%",
             background: "var(--card)",
             border: "1px solid var(--line-strong)",
             color: "var(--mute)",
-            fontSize: 14,
+            fontSize: 12,
             lineHeight: 1,
             boxShadow: "0 1px 3px rgba(42, 31, 24, 0.08)",
           }}

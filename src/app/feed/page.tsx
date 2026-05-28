@@ -12,6 +12,8 @@ import {
 import { TodayBand, type TodayPact } from "./today-band";
 import { MyMetricTile } from "./my-metric-tile";
 import { NotificationsBanner } from "@/components/notifications-banner";
+import { ReactionBar } from "@/components/reactions/reaction-bar";
+import { summarizeReactions } from "@/components/reactions/constants";
 
 type Frequency = "daily" | "weekly";
 
@@ -46,6 +48,7 @@ type CompletionRow = {
   note: string | null;
   metric_value: number | null;
   profiles: { display_name: string } | null;
+  reactions: { emoji: string; user_id: string }[] | null;
 };
 
 const greeting = () => {
@@ -144,7 +147,7 @@ export default async function FeedPage() {
       ? supabase
           .from("completions")
           .select(
-            "id, challenge_id, user_id, completed_at, note, metric_value, profiles(display_name)",
+            "id, challenge_id, user_id, completed_at, note, metric_value, profiles(display_name), reactions(emoji, user_id)",
           )
           .in("challenge_id", challengeIds)
           .gte("completed_at", lookback30.toISOString())
@@ -245,6 +248,7 @@ export default async function FeedPage() {
         note: c.note as string,
         pactId: pact?.id,
         pactName: pact?.name,
+        reactions: summarizeReactions(c.reactions ?? [], user.id),
       };
     });
 
@@ -440,7 +444,7 @@ export default async function FeedPage() {
             {todaysNotes.map((n) => (
               <li
                 key={n.id}
-                className="p-3"
+                className="p-3 relative"
                 style={{
                   background: "var(--card)",
                   border: "1px solid var(--line)",
@@ -494,6 +498,11 @@ export default async function FeedPage() {
                 >
                   {n.note}
                 </p>
+                <ReactionBar
+                  completionId={n.id}
+                  reactions={n.reactions}
+                  revalidatePath="/feed"
+                />
               </li>
             ))}
           </ul>

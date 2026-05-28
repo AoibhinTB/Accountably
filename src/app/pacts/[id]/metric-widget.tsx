@@ -269,7 +269,7 @@ export function MetricSideBySide({
   const [showBreakdown, setShowBreakdown] = useState(false);
   return (
     <>
-      <div className="flex items-start justify-evenly">
+      <div className="flex items-stretch justify-evenly">
         {circle}
         <div
           className="flex items-center px-4"
@@ -277,7 +277,6 @@ export function MetricSideBySide({
             background: "transparent",
             border: "1.5px solid var(--accent-soft)",
             borderRadius: "var(--radius)",
-            height: 118,
           }}
         >
           <MetricInline
