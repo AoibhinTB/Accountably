@@ -234,10 +234,10 @@ export default async function PactPage({
       },
     ]),
   );
-  // Show every completion (with or without a note) so multi-target pacts
-  // can delete check-ins from here even when no note was attached. Rows
-  // without notes still render — just compact, no italic body.
+  // Notes section is for notes specifically — bare check-ins live in the
+  // grid above. Filter to completions that actually carry a note string.
   const notesForHistory = (recentCompletions ?? [])
+    .filter((c) => c.note && c.note.trim().length > 0)
     .map((c) => {
       const profile = profileByUserId.get(c.user_id);
       return {
@@ -622,18 +622,6 @@ export default async function PactPage({
         </section>
       )}
 
-      {challenge && notesForHistory.length > 0 && (
-        <NotesHistory
-          notes={notesForHistory}
-          currentUserId={currentUserId}
-          metricKind={
-            (challenge.metric_kind as "count" | "minutes" | null) ?? null
-          }
-          metricName={challenge.metric_name}
-          pactId={pact.id}
-        />
-      )}
-
       {challenge && pendingToNudge.length > 0 && (
         <section className="px-5 pt-6">
           <div className="label mb-2">still pending</div>
@@ -668,6 +656,18 @@ export default async function PactPage({
             ))}
           </ul>
         </section>
+      )}
+
+      {challenge && notesForHistory.length > 0 && (
+        <NotesHistory
+          notes={notesForHistory}
+          currentUserId={currentUserId}
+          metricKind={
+            (challenge.metric_kind as "count" | "minutes" | null) ?? null
+          }
+          metricName={challenge.metric_name}
+          pactId={pact.id}
+        />
       )}
 
     </main>

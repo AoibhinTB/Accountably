@@ -56,7 +56,7 @@ export function NotesHistory({
 
   return (
     <section className="px-5 pt-6">
-      <div className="label mb-2">check-ins</div>
+      <div className="label mb-2">notes</div>
       <ul className="flex flex-col gap-2">
         {notes.map((n) => (
           <NoteRow
