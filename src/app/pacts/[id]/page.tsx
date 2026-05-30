@@ -310,7 +310,47 @@ export default async function PactPage({
               (m) => m.user_id === userData.user?.id,
             );
             return (
-              <div style={{ position: "absolute", top: 10, right: 10 }}>
+              <div
+                style={{
+                  position: "absolute",
+                  top: 10,
+                  right: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Link
+                  href={`/pacts/${pact.id}/logbook`}
+                  aria-label="Open your private logbook"
+                  className="press"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: "50%",
+                    background: "var(--card)",
+                    border: "1px solid var(--line-strong)",
+                    color: "var(--ink-soft)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                </Link>
                 <EditPactDialog
                   pactId={pact.id}
                   pactName={pact.name}
@@ -601,12 +641,16 @@ export default async function PactPage({
           </div>
           <CheckInGrid
             pactId={pact.id}
+            pactName={pact.name}
             currentUserId={currentUserId}
             challenge={{
               frequency: challenge.frequency,
               days_of_week: challenge.days_of_week,
               start_date: challenge.start_date,
               target_per_period: challengeTarget,
+              metric_kind:
+                (challenge.metric_kind as "count" | "minutes" | null) ?? null,
+              metric_name: challenge.metric_name,
             }}
             members={(members ?? []).map((m) => ({
               user_id: m.user_id,
@@ -617,6 +661,7 @@ export default async function PactPage({
             completions={(recentCompletions ?? []).map((c) => ({
               user_id: c.user_id,
               completed_at: c.completed_at,
+              metric_value: c.metric_value,
             }))}
           />
         </section>

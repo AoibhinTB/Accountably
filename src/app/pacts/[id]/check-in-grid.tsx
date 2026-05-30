@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useOptimistic, useRef, useTransition } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { togglePeriodCompletion } from "../actions";
 import { Avatar } from "@/components/ui/avatar";
+import { NoteSheet, type NoteSheetPrompt } from "@/components/note-sheet";
 
 type Frequency = "daily" | "weekly";
 
@@ -16,6 +24,7 @@ type Member = {
 type Completion = {
   user_id: string;
   completed_at: string;
+  metric_value?: number | null;
 };
 
 type CellState = "done" | "partial" | "pending" | "rest" | "prePact" | "preJoin";
@@ -37,6 +46,16 @@ function startOfPeriod(date: Date, frequency: Frequency): Date {
 
 function periodKeyOf(date: Date, frequency: Frequency): string {
   return startOfPeriod(date, frequency).toISOString().slice(0, 10);
+}
+
+const FORMAT_OPTS: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+};
+
+function formatCellDate(key: string): string {
+  const d = new Date(`${key}T00:00:00Z`);
+  return d.toLocaleDateString(undefined, FORMAT_OPTS);
 }
 
 // Today first, going right = older. Always at least minCount columns; if the
@@ -87,18 +106,22 @@ function weeklyColLabels(key: string): { line1: string; line2: string } {
 
 export function CheckInGrid({
   pactId,
+  pactName,
   currentUserId,
   challenge,
   members,
   completions,
 }: {
   pactId: string;
+  pactName: string;
   currentUserId: string | null;
   challenge: {
     frequency: Frequency;
     days_of_week: number[] | null;
     start_date: string;
     target_per_period: number;
+    metric_kind: "count" | "minutes" | null;
+    metric_name: string | null;
   };
   members: Member[];
   completions: Completion[];
@@ -152,6 +175,8 @@ export function CheckInGrid({
     },
   );
   const [isPending, startTransition] = useTransition();
+  const [memberModal, setMemberModal] = useState<Member | null>(null);
+  const [notePrompt, setNotePrompt] = useState<NoteSheetPrompt | null>(null);
 
   const memberJoinTimes = members.map((m) => ({
     user_id: m.user_id,
@@ -220,6 +245,16 @@ export function CheckInGrid({
       const result = await togglePeriodCompletion(pactId, colKey);
       if (!result.ok) {
         console.error("togglePeriodCompletion failed:", result.error);
+        return;
+      }
+      if (result.done && colKey !== todayKey) {
+        setNotePrompt({
+          pactName,
+          completionId: result.completionId,
+          metricKind: challenge.metric_kind,
+          metricName: challenge.metric_name,
+          dateLabel: formatCellDate(colKey),
+        });
       }
     });
   };
@@ -362,7 +397,11 @@ export function CheckInGrid({
                   i < members.length - 1 ? "1px solid var(--line)" : "none",
               }}
             >
-              <div
+              <button
+                type="button"
+                onClick={() => setMemberModal(m)}
+                aria-label={`See ${m.display_name}'s metric breakdown`}
+                className="press"
                 style={{
                   width: NAME_COL_W,
                   flexShrink: 0,
@@ -370,13 +409,17 @@ export function CheckInGrid({
                   left: 0,
                   background: "var(--card)",
                   borderRight: "1px solid var(--line)",
+                  border: "none",
                   height: "100%",
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
                   padding: "0 8px",
                   zIndex: 1,
+                  cursor: challenge.metric_kind ? "pointer" : "default",
+                  textAlign: "left",
                 }}
+                disabled={!challenge.metric_kind}
               >
                 <Avatar
                   name={m.display_name}
@@ -397,7 +440,7 @@ export function CheckInGrid({
                     <span style={{ color: "var(--mute)" }}> · you</span>
                   )}
                 </span>
-              </div>
+              </button>
               {columns.map((col, idx) => {
                 const state = computeCell(m, col);
                 const isToday = col.key === todayKey;
@@ -470,6 +513,23 @@ export function CheckInGrid({
           );
         })}
       </div>
+      {memberModal && challenge.metric_kind && (
+        <MemberMetricModal
+          member={memberModal}
+          completions={completions.filter(
+            (c) => c.user_id === memberModal.user_id,
+          )}
+          metricKind={challenge.metric_kind}
+          metricName={challenge.metric_name}
+          onClose={() => setMemberModal(null)}
+        />
+      )}
+      {notePrompt && (
+        <NoteSheet
+          prompt={notePrompt}
+          onClose={() => setNotePrompt(null)}
+        />
+      )}
     </div>
   );
 }
@@ -608,3 +668,196 @@ function CellGlyph({
   }
   return null; // preJoin → blank cell
 }
+
+function MemberMetricModal({
+  member,
+  completions,
+  metricKind,
+  metricName,
+  onClose,
+}: {
+  member: Member;
+  completions: Completion[];
+  metricKind: 'count' | 'minutes';
+  metricName: string | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const now = new Date();
+  const periods: { label: string; start: Date | null }[] = [
+    { label: 'today', start: startOfDayUTC(now) },
+    { label: 'this week', start: startOfWeekUTC(now) },
+    { label: 'this month', start: startOfMonthUTC(now) },
+    { label: 'this year', start: startOfYearUTC(now) },
+    { label: 'all time', start: null },
+  ];
+
+  const totalIn = (start: Date | null): number =>
+    completions
+      .filter((c) => !start || new Date(c.completed_at) >= start)
+      .reduce((acc, c) => acc + (c.metric_value ?? 0), 0);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${member.display_name}'s metrics`}
+      className="fixed inset-0 z-50 flex flex-col justify-end"
+      style={{ background: 'rgba(42, 31, 24, 0.32)' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--bg)',
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          padding: '12px 22px calc(env(safe-area-inset-bottom, 0px) + 24px)',
+          boxShadow: '0 -8px 30px rgba(42, 31, 24, 0.18)',
+        }}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <div
+            aria-hidden
+            style={{
+              width: 44,
+              height: 4,
+              borderRadius: 2,
+              background: 'var(--line-strong)',
+            }}
+          />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="press"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: 'transparent',
+              color: 'var(--mute)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+              lineHeight: 1,
+              border: 'none',
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 mb-4">
+          <Avatar
+            name={member.display_name}
+            colorIndex={member.avatar_color_index}
+            size={48}
+          />
+          <div>
+            <div className="label">metrics</div>
+            <h2
+              className="m-0"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 26,
+                lineHeight: 1.05,
+                color: 'var(--ink)',
+              }}
+            >
+              {member.display_name}
+            </h2>
+          </div>
+        </div>
+
+        <ul
+          className="overflow-hidden"
+          style={{
+            background: 'var(--card)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--radius)',
+          }}
+        >
+          {periods.map((p, i, arr) => {
+            const total = totalIn(p.start);
+            const f = formatMetric(total, metricKind, metricName);
+            return (
+              <li
+                key={p.label}
+                className="flex items-baseline justify-between p-3"
+                style={{
+                  borderBottom:
+                    i < arr.length - 1 ? '1px solid var(--line)' : 'none',
+                }}
+              >
+                <span className="label">{p.label}</span>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-stat-mono)',
+                    fontSize: 14,
+                    color: total > 0 ? 'var(--ink)' : 'var(--mute)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {f.number}
+                  {f.unit ? ` ${f.unit}` : ''}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function startOfDayUTC(d: Date): Date {
+  const r = new Date(d);
+  r.setUTCHours(0, 0, 0, 0);
+  return r;
+}
+function startOfWeekUTC(d: Date): Date {
+  const r = startOfDayUTC(d);
+  const offset = (r.getUTCDay() + 6) % 7;
+  r.setUTCDate(r.getUTCDate() - offset);
+  return r;
+}
+function startOfMonthUTC(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+function startOfYearUTC(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+}
+
+function formatMetric(
+  total: number,
+  kind: 'count' | 'minutes',
+  name: string | null,
+): { number: string; unit: string } {
+  if (kind === 'minutes') {
+    if (total < 60) return { number: String(total), unit: 'min' };
+    const totalH = Math.floor(total / 60);
+    const remM = total % 60;
+    if (totalH < 24) {
+      return { number: `${totalH}h${remM > 0 ? ` ${remM}m` : ''}`, unit: '' };
+    }
+    const d = Math.floor(totalH / 24);
+    const remH = totalH % 24;
+    return { number: `${d}d${remH > 0 ? ` ${remH}h` : ''}`, unit: '' };
+  }
+  return { number: total.toLocaleString(), unit: name ?? 'units' };
+}
+

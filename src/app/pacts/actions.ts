@@ -464,7 +464,11 @@ export async function sendNudge(
 export async function togglePeriodCompletion(
   pactId: string,
   dateISO: string,
-): Promise<{ ok: true; done: boolean } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; done: true; completionId: string }
+  | { ok: true; done: false }
+  | { ok: false; error: string }
+> {
   if (!pactId || !dateISO) return { ok: false, error: "Missing args" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
     return { ok: false, error: "Invalid date" };
@@ -530,19 +534,23 @@ export async function togglePeriodCompletion(
     return { ok: true, done: false };
   }
 
-  const { error } = await supabase
+  const { data: inserted, error } = await supabase
     .from("completions")
     .insert({
       challenge_id: challenge.id,
       completed_at: target.toISOString(),
-    });
+    })
+    .select("id")
+    .single();
 
-  if (error) return { ok: false, error: error.message };
+  if (error || !inserted) {
+    return { ok: false, error: error?.message ?? "Insert failed" };
+  }
 
   revalidatePath(`/pacts/${pactId}`);
   revalidatePath("/feed");
   after(() => notifyCompletion({ actorUserId: user.id, pactId }));
-  return { ok: true, done: true };
+  return { ok: true, done: true, completionId: inserted.id };
 }
 
 // Insert-only backdate (kept for any callers that explicitly want add-only).

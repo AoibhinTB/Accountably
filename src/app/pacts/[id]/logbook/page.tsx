@@ -1,0 +1,307 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { Chevron } from "@/components/ui/chevron";
+import { Squiggle } from "@/components/ui/squiggle";
+import { noteTimestamp } from "@/lib/period";
+import { JournalEntryActions, JournalForm } from "./journal-form";
+
+type Challenge = {
+  id: string;
+  metric_kind: "count" | "minutes" | null;
+  metric_name: string | null;
+  archived: boolean;
+};
+
+type Pact = {
+  id: string;
+  name: string;
+  icon: string | null;
+  challenges: Challenge[];
+};
+
+type Completion = {
+  id: string;
+  completed_at: string;
+  note: string | null;
+  metric_value: number | null;
+};
+
+type JournalEntry = {
+  id: string;
+  body: string;
+  created_at: string;
+};
+
+const startOfDay = (d: Date) => {
+  const r = new Date(d);
+  r.setUTCHours(0, 0, 0, 0);
+  return r;
+};
+const startOfWeek = (d: Date) => {
+  const r = startOfDay(d);
+  const offset = (r.getUTCDay() + 6) % 7;
+  r.setUTCDate(r.getUTCDate() - offset);
+  return r;
+};
+const startOfMonth = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+const startOfYear = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+
+function formatMetric(
+  total: number,
+  kind: "count" | "minutes",
+  name: string | null,
+): { number: string; unit: string } {
+  if (kind === "minutes") {
+    if (total < 60) return { number: String(total), unit: "min" };
+    const totalH = Math.floor(total / 60);
+    const remM = total % 60;
+    if (totalH < 24) {
+      return { number: `${totalH}h${remM > 0 ? ` ${remM}m` : ""}`, unit: "" };
+    }
+    const d = Math.floor(totalH / 24);
+    const remH = totalH % 24;
+    return { number: `${d}d${remH > 0 ? ` ${remH}h` : ""}`, unit: "" };
+  }
+  return { number: total.toLocaleString(), unit: name ?? "units" };
+}
+
+export default async function LogbookPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect(`/login?next=/pacts/${id}/logbook`);
+
+  const { data: pact } = await supabase
+    .from("groups")
+    .select("id, name, icon, challenges(id, metric_kind, metric_name, archived)")
+    .eq("id", id)
+    .maybeSingle<Pact>();
+  if (!pact) notFound();
+
+  const challenge =
+    (pact.challenges ?? []).find((c) => !c.archived) ?? null;
+  const metricKind = challenge?.metric_kind ?? null;
+  const metricName = challenge?.metric_name ?? null;
+
+  const completionsPromise = challenge
+    ? supabase
+        .from("completions")
+        .select("id, completed_at, note, metric_value")
+        .eq("user_id", user.id)
+        .eq("challenge_id", challenge.id)
+        .order("completed_at", { ascending: false })
+        .returns<Completion[]>()
+    : Promise.resolve({ data: [] as Completion[] });
+
+  const journalPromise = supabase
+    .from("journal_entries")
+    .select("id, body, created_at")
+    .eq("pact_id", id)
+    .order("created_at", { ascending: false })
+    .returns<JournalEntry[]>();
+
+  const [{ data: completions }, { data: journal }] = await Promise.all([
+    completionsPromise,
+    journalPromise,
+  ]);
+
+  const now = new Date();
+  const totals = metricKind
+    ? [
+        { label: "today", start: startOfDay(now) },
+        { label: "this week", start: startOfWeek(now) },
+        { label: "this month", start: startOfMonth(now) },
+        { label: "this year", start: startOfYear(now) },
+        { label: "all time", start: null as Date | null },
+      ].map(({ label, start }) => {
+        const total = (completions ?? [])
+          .filter((c) => !start || new Date(c.completed_at) >= start)
+          .reduce((acc, c) => acc + (c.metric_value ?? 0), 0);
+        return { label, ...formatMetric(total, metricKind, metricName) };
+      })
+    : null;
+
+  const myNotes = (completions ?? []).filter(
+    (c) => c.note && c.note.trim().length > 0,
+  );
+
+  return (
+    <main className="mx-auto w-full max-w-2xl px-5 pt-10 pb-28">
+      <Link
+        href={`/pacts/${pact.id}`}
+        className="press inline-flex min-h-10 items-center gap-1.5 text-sm"
+        style={{ color: "var(--ink-soft)" }}
+      >
+        <Chevron direction="left" size={14} strokeWidth={2} />
+        <span>{pact.name}</span>
+      </Link>
+
+      <header className="mt-4 mb-4">
+        <div className="label">your private space</div>
+        <h1 className="h-display m-0 mt-1" style={{ fontSize: 36, lineHeight: 1.05 }}>
+          logbook
+        </h1>
+        <Squiggle width={64} />
+      </header>
+
+      {totals && (
+        <section className="mb-6">
+          <div className="label mb-2">your totals</div>
+          <ul
+            className="overflow-hidden"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            {totals.map((t, i, arr) => (
+              <li
+                key={t.label}
+                className="flex items-baseline justify-between p-3"
+                style={{
+                  borderBottom:
+                    i < arr.length - 1 ? "1px solid var(--line)" : "none",
+                }}
+              >
+                <span className="label">{t.label}</span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-stat-mono)",
+                    fontSize: 14,
+                    color: t.number === "0" ? "var(--mute)" : "var(--ink)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {t.number}
+                  {t.unit ? ` ${t.unit}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="mb-6">
+        <div className="label mb-2">add a private entry</div>
+        <JournalForm pactId={pact.id} />
+        <p
+          className="label mt-2"
+          style={{ fontSize: 10, color: "var(--mute)" }}
+        >
+          only you can see entries in your logbook. they are not shared with
+          your pact.
+        </p>
+      </section>
+
+      {(journal ?? []).length > 0 && (
+        <section className="mb-6">
+          <div className="label mb-2">your entries</div>
+          <ul className="flex flex-col gap-2">
+            {(journal ?? []).map((j) => (
+              <li
+                key={j.id}
+                className="p-3 relative"
+                style={{
+                  background: "var(--card)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--radius)",
+                }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div
+                    className="label"
+                    style={{ fontSize: 10, color: "var(--mute)" }}
+                  >
+                    {noteTimestamp(j.created_at)}
+                  </div>
+                  <JournalEntryActions entryId={j.id} />
+                </div>
+                <p
+                  className="mt-2 whitespace-pre-wrap"
+                  style={{
+                    fontSize: 14,
+                    color: "var(--ink)",
+                    lineHeight: 1.4,
+                    paddingLeft: 10,
+                    borderLeft: "2px solid var(--accent)",
+                  }}
+                >
+                  {j.body}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {myNotes.length > 0 && (
+        <section>
+          <div className="label mb-2">your check-in notes</div>
+          <p
+            className="label mb-3"
+            style={{ fontSize: 10, color: "var(--mute)" }}
+          >
+            these are the notes you posted on your own check-ins — visible to
+            your pact.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {myNotes.map((c) => (
+              <li
+                key={c.id}
+                className="p-3"
+                style={{
+                  background: "var(--card)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--radius)",
+                }}
+              >
+                <div
+                  className="label"
+                  style={{ fontSize: 10, color: "var(--mute)" }}
+                >
+                  {noteTimestamp(c.completed_at)}
+                  {c.metric_value !== null && metricKind && (
+                    <>
+                      {" · "}
+                      {(() => {
+                        const f = formatMetric(
+                          c.metric_value,
+                          metricKind,
+                          metricName,
+                        );
+                        return `${f.number}${f.unit ? ` ${f.unit}` : ""}`;
+                      })()}
+                    </>
+                  )}
+                </div>
+                <p
+                  className="mt-2 whitespace-pre-wrap"
+                  style={{
+                    fontSize: 14,
+                    color: "var(--ink)",
+                    lineHeight: 1.4,
+                    paddingLeft: 10,
+                    borderLeft: "2px solid var(--accent)",
+                  }}
+                >
+                  {c.note}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </main>
+  );
+}

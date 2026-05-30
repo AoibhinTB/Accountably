@@ -253,16 +253,12 @@ export function MetricBreakdown({
   );
 }
 
-// Drives the circle-row pair: inline metric sits alongside the circle (via
-// the `circle` prop), and the breakdown expands below in a sibling node.
-// The metric is wrapped in a soft-tinted box that lines up next to the
-// circle and visually balances the row.
+// Circle + inline metric pair. Per-member breakdown moved to the grid (tap
+// a member's name) so this surface stays focused on the group total.
 export function MetricSideBySide({
   metricKind,
   metricName,
   completions,
-  members,
-  currentUserId,
   circle,
 }: {
   metricKind: "count" | "minutes";
@@ -273,41 +269,26 @@ export function MetricSideBySide({
   circle: React.ReactNode;
 }) {
   const [period, setPeriod] = useState<Period>("week");
-  const [showBreakdown, setShowBreakdown] = useState(false);
   return (
-    <>
-      <div className="flex items-stretch justify-evenly">
-        {circle}
-        <div
-          className="flex items-center px-4"
-          style={{
-            background: "var(--card)",
-            border: "1.5px solid var(--accent-soft)",
-            borderRadius: "var(--radius)",
-          }}
-        >
-          <MetricInline
-            metricKind={metricKind}
-            metricName={metricName}
-            completions={completions}
-            period={period}
-            onCyclePeriod={() => setPeriod(nextPeriod(period))}
-          />
-        </div>
-      </div>
-      {members.length > 1 && (
-        <MetricBreakdown
+    <div className="flex items-stretch justify-evenly">
+      {circle}
+      <div
+        className="flex items-center px-4"
+        style={{
+          background: "var(--card)",
+          border: "1.5px solid var(--accent-soft)",
+          borderRadius: "var(--radius)",
+        }}
+      >
+        <MetricInline
           metricKind={metricKind}
           metricName={metricName}
           completions={completions}
-          members={members}
           period={period}
-          currentUserId={currentUserId}
-          show={showBreakdown}
-          onToggle={() => setShowBreakdown((v) => !v)}
+          onCyclePeriod={() => setPeriod(nextPeriod(period))}
         />
-      )}
-    </>
+      </div>
+    </div>
   );
 }
 
