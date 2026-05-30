@@ -4,7 +4,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Avatar } from "@/components/ui/avatar";
 import { Chevron } from "@/components/ui/chevron";
 import { Squiggle } from "@/components/ui/squiggle";
-import { formatDate } from "@/lib/period";
+import { currentStreak } from "@/lib/period";
 import { joinPactByCode } from "./actions";
 
 type Membership = {
@@ -23,22 +23,6 @@ type Membership = {
       days_of_week: number[] | null;
     }[];
   } | null;
-};
-
-const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-
-const cadenceLabel = (
-  frequency: "daily" | "weekly",
-  daysOfWeek: number[] | null,
-): string => {
-  if (frequency === "weekly") return "once a week";
-  if (!daysOfWeek || daysOfWeek.length === 0) return "every day";
-  const sorted = [...daysOfWeek].sort((a, b) => a - b);
-  if (sorted.length === 7) return "every day";
-  if (sorted.length === 5 && sorted.every((d, i) => d === i)) return "weekdays";
-  if (sorted.length === 2 && sorted[0] === 5 && sorted[1] === 6) return "weekends";
-  if (sorted.length === 1) return DAY_SHORT[sorted[0]];
-  return sorted.map((d) => DAY_SHORT[d]).join(", ");
 };
 
 type MemberRow = {
@@ -108,6 +92,41 @@ export default async function PactsPage({
       active: g.challenges?.find((c) => !c.archived) ?? null,
       members: membersByGroup.get(g.id) ?? [],
     }));
+
+  // Per-pact personal streak for the chip on each card. 400-day lookback
+  // comfortably covers any plausible run.
+  const activeChallengeIds = pacts
+    .map((p) => p.active?.id)
+    .filter((id): id is string => !!id);
+  const lookback = new Date();
+  lookback.setUTCDate(lookback.getUTCDate() - 400);
+  const { data: myCompletions } =
+    user && activeChallengeIds.length
+      ? await supabase
+          .from("completions")
+          .select("challenge_id, completed_at")
+          .eq("user_id", user.id)
+          .in("challenge_id", activeChallengeIds)
+          .gte("completed_at", lookback.toISOString())
+      : { data: [] as { challenge_id: string; completed_at: string }[] };
+  const completionsByChallenge = new Map<string, string[]>();
+  for (const c of myCompletions ?? []) {
+    const list = completionsByChallenge.get(c.challenge_id) ?? [];
+    list.push(c.completed_at);
+    completionsByChallenge.set(c.challenge_id, list);
+  }
+  const streakByPactId = new Map<string, number>();
+  for (const p of pacts) {
+    if (!p.active) continue;
+    streakByPactId.set(
+      p.id,
+      currentStreak(
+        completionsByChallenge.get(p.active.id) ?? [],
+        p.active.frequency,
+        p.active.days_of_week,
+      ),
+    );
+  }
 
   const isEmpty = pacts.length === 0;
 
@@ -181,12 +200,36 @@ export default async function PactsPage({
                 >
                   {p.name}
                 </div>
-                <div className="label mt-1">
-                  {p.active
-                    ? cadenceLabel(p.active.frequency, p.active.days_of_week)
-                    : "no active challenge"}
-                  {p.active && ` · since ${formatDate(p.active.start_date)}`}
-                </div>
+                {!p.active && (
+                  <div className="label mt-1">no active challenge</div>
+                )}
+                {p.active && (streakByPactId.get(p.id) ?? 0) > 0 && (
+                  <span
+                    className="mt-1 inline-flex items-center gap-1"
+                    style={{
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      background: "var(--accent-soft)",
+                      color: "var(--accent)",
+                      fontFamily: "var(--font-stat-mono)",
+                      fontSize: 10.5,
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {streakByPactId.get(p.id)}
+                    </span>
+                    {p.active.frequency === "weekly"
+                      ? (streakByPactId.get(p.id) ?? 0) === 1
+                        ? "wk streak"
+                        : "wks streak"
+                      : (streakByPactId.get(p.id) ?? 0) === 1
+                        ? "day streak"
+                        : "day streak"}
+                  </span>
+                )}
                 {p.members.length > 0 && (
                   <div className="mt-2 flex items-center gap-2">
                     <div className="avastack">

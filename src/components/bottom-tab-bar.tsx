@@ -35,7 +35,7 @@ const YouIcon = ({ size = 20 }: { size?: number }) => (
 const tabs = [
   {
     href: "/feed",
-    label: "Feed",
+    label: "Home",
     match: (p: string) => p === "/feed" || p === "/",
     Icon: FeedIcon,
   },

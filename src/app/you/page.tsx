@@ -76,28 +76,15 @@ export default async function YouPage() {
   const lookback = new Date();
   lookback.setUTCDate(lookback.getUTCDate() - 400);
 
-  // Phase 2: my completions for streak compute + this-month count, parallel.
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-
-  const [{ data: myCompletions }, { count: monthCount }] = await Promise.all([
-    activeChallengeIds.length
-      ? supabase
-          .from("completions")
-          .select("challenge_id, completed_at")
-          .eq("user_id", user.id)
-          .in("challenge_id", activeChallengeIds)
-          .gte("completed_at", lookback.toISOString())
-      : Promise.resolve({
-          data: [] as { challenge_id: string; completed_at: string }[],
-        }),
-    supabase
-      .from("completions")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .gte("completed_at", monthStart.toISOString()),
-  ]);
+  // Phase 2: my completions for per-pact streaks shown in the list below.
+  const { data: myCompletions } = activeChallengeIds.length
+    ? await supabase
+        .from("completions")
+        .select("challenge_id, completed_at")
+        .eq("user_id", user.id)
+        .in("challenge_id", activeChallengeIds)
+        .gte("completed_at", lookback.toISOString())
+    : { data: [] as { challenge_id: string; completed_at: string }[] };
 
   const completionsByChallenge = new Map<string, string[]>();
   for (const c of myCompletions ?? []) {
@@ -117,23 +104,6 @@ export default async function YouPage() {
       ),
     };
   });
-
-  const topStreak = pactsWithStreak.reduce(
-    (max, p) => Math.max(max, p.streak),
-    0,
-  );
-  const topStreakFreq =
-    pactsWithStreak.find((p) => p.streak === topStreak)?.challenge.frequency ??
-    "daily";
-
-  const stats = [
-    { label: "pacts", value: pactsWithStreak.length },
-    {
-      label: topStreakFreq === "weekly" ? "streak (wks)" : "streak (days)",
-      value: topStreak,
-    },
-    { label: "check-ins this month", value: monthCount ?? 0 },
-  ];
 
   return (
     <main className="mx-auto w-full max-w-2xl px-5 pt-10 pb-28">
@@ -162,32 +132,6 @@ export default async function YouPage() {
           />
         </div>
       </header>
-
-      <section className="mt-6 grid grid-cols-3 gap-2.5">
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="p-3 text-center"
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius)",
-            }}
-          >
-            <div
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 30,
-                lineHeight: 1,
-                color: "var(--ink)",
-              }}
-            >
-              {s.value}
-            </div>
-            <div className="label mt-1.5">{s.label}</div>
-          </div>
-        ))}
-      </section>
 
       <section className="mt-7">
         <div className="label mb-2">your pacts</div>
