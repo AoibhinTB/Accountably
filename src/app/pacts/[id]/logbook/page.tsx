@@ -4,7 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Chevron } from "@/components/ui/chevron";
 import { Squiggle } from "@/components/ui/squiggle";
 import { noteTimestamp } from "@/lib/period";
+import { CalendarMonth } from "./calendar-month";
 import { JournalEntryActions, JournalForm } from "./journal-form";
+import { Trends } from "./trends";
 
 type Challenge = {
   id: string;
@@ -188,15 +190,51 @@ export default async function LogbookPage({
         <Squiggle width={64} />
       </header>
 
+      <Trends
+        completions={(completions ?? []).map((c) => ({
+          completed_at: c.completed_at,
+          metric_value: c.metric_value,
+        }))}
+        metricKind={metricKind}
+        metricName={metricName}
+      />
+
+      <CalendarMonth
+        completions={(completions ?? []).map((c) => ({
+          completed_at: c.completed_at,
+        }))}
+      />
+
+      <section className="mb-6">
+        <div className="label mb-2">add a private entry</div>
+        <JournalForm pactId={pact.id} />
+      </section>
+
       {totals && (
-        <section className="mb-6">
-          <div className="label mb-2">your totals</div>
+        <details
+          className="group mb-6"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--line)",
+            borderRadius: "var(--radius)",
+          }}
+        >
+          <summary
+            className="press flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden"
+            style={{ padding: "0 16px" }}
+          >
+            <span className="label">your totals</span>
+            <span
+              className="label"
+              style={{ fontSize: 9, color: "var(--mute)" }}
+            >
+              tap to view
+            </span>
+          </summary>
           <ul
             className="overflow-hidden"
             style={{
-              background: "var(--card)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius)",
+              borderTop: "1px solid var(--line)",
             }}
           >
             {totals.map((t, i, arr) => (
@@ -223,20 +261,8 @@ export default async function LogbookPage({
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       )}
-
-      <section className="mb-6">
-        <div className="label mb-2">add a private entry</div>
-        <JournalForm pactId={pact.id} />
-        <p
-          className="label mt-2"
-          style={{ fontSize: 10, color: "var(--mute)" }}
-        >
-          only you can see entries in your logbook. they are not shared with
-          your pact.
-        </p>
-      </section>
 
       {(journal ?? []).length > 0 && (
         <section className="mb-6">
@@ -282,13 +308,6 @@ export default async function LogbookPage({
       {myNotes.length > 0 && (
         <section>
           <div className="label mb-2">your check-in notes</div>
-          <p
-            className="label mb-3"
-            style={{ fontSize: 10, color: "var(--mute)" }}
-          >
-            notes you attached to your own check-ins. public notes are shared
-            with the pact; private ones stay here.
-          </p>
           <ul className="flex flex-col gap-2">
             {myNotes.map((c) => {
               const metricChip =

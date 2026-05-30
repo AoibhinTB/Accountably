@@ -268,8 +268,17 @@ export async function saveCompletionNote(formData: FormData) {
   const noteRaw = String(formData.get("note") ?? "").trim();
   const note = noteRaw ? noteRaw : null;
   const metricValue = parseMetricValue(formData.get("metric_value"));
+  const visibility =
+    String(formData.get("visibility") ?? "public").trim() === "private"
+      ? "private"
+      : "public";
 
-  const update: Record<string, string | number | null> = { note };
+  const update: Record<string, string | number | null> = {};
+  if (visibility === "private") {
+    update.private_note = note;
+  } else {
+    update.note = note;
+  }
   if (metricValue !== undefined) update.metric_value = metricValue;
 
   const { data, error } = await supabase

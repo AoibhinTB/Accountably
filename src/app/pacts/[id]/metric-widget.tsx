@@ -253,42 +253,26 @@ export function MetricBreakdown({
   );
 }
 
-// Circle + inline metric pair. Per-member breakdown moved to the grid (tap
-// a member's name) so this surface stays focused on the group total.
+// Standalone version of the metric: drives the cycling-period state for a
+// MetricInline so the page can render it without managing client state.
 export function MetricSideBySide({
   metricKind,
   metricName,
   completions,
-  circle,
 }: {
   metricKind: "count" | "minutes";
   metricName: string | null;
   completions: Completion[];
-  members: MemberLite[];
-  currentUserId: string | null;
-  circle: React.ReactNode;
 }) {
   const [period, setPeriod] = useState<Period>("week");
   return (
-    <div className="flex items-stretch justify-evenly">
-      {circle}
-      <div
-        className="flex items-center px-4"
-        style={{
-          background: "var(--card)",
-          border: "1.5px solid var(--accent-soft)",
-          borderRadius: "var(--radius)",
-        }}
-      >
-        <MetricInline
-          metricKind={metricKind}
-          metricName={metricName}
-          completions={completions}
-          period={period}
-          onCyclePeriod={() => setPeriod(nextPeriod(period))}
-        />
-      </div>
-    </div>
+    <MetricInline
+      metricKind={metricKind}
+      metricName={metricName}
+      completions={completions}
+      period={period}
+      onCyclePeriod={() => setPeriod(nextPeriod(period))}
+    />
   );
 }
 

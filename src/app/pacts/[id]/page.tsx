@@ -15,6 +15,7 @@ import { CheckInGrid } from "./check-in-grid";
 import { EditPactDialog } from "./edit-pact-dialog";
 import { IconEditTrigger } from "./icon-edit-trigger";
 import { MetricSideBySide } from "./metric-widget";
+import { VisibilityToggle } from "./visibility-toggle";
 import { NotesHistory } from "./notes-history";
 import { NudgeButton } from "./nudge-button";
 import { PactCircle } from "./pact-circle";
@@ -310,50 +311,7 @@ export default async function PactPage({
               (m) => m.user_id === userData.user?.id,
             );
             return (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 10,
-                  right: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <Link
-                  href={`/pacts/${pact.id}/logbook`}
-                  aria-label="Open your private logbook"
-                  className="press inline-flex items-center gap-1.5"
-                  style={{
-                    height: 30,
-                    padding: "0 12px",
-                    borderRadius: 999,
-                    background: "var(--accent-soft)",
-                    border: "1px solid var(--accent)",
-                    color: "var(--accent)",
-                    fontFamily: "var(--font-stat-mono)",
-                    fontSize: 11,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                  }}
-                >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                  </svg>
-                  logbook
-                </Link>
+              <div style={{ position: "absolute", top: 10, right: 10 }}>
                 <EditPactDialog
                   pactId={pact.id}
                   pactName={pact.name}
@@ -472,43 +430,73 @@ export default async function PactPage({
       )}
 
       {challenge && (
-        <section className="pt-6">
-          {challenge.metric_kind ? (
-            <MetricSideBySide
-              metricKind={challenge.metric_kind as "count" | "minutes"}
-              metricName={challenge.metric_name}
-              completions={(recentCompletions ?? []).map((c) => ({
-                user_id: c.user_id,
-                metric_value: c.metric_value,
-                completed_at: c.completed_at,
-              }))}
-              members={(members ?? []).map((m) => ({
-                user_id: m.user_id,
-                display_name: m.profiles?.display_name ?? "unknown",
-              }))}
-              currentUserId={currentUserId}
-              circle={
-                <PactCircle
-                  pactId={pact.id}
-                  icon={pact.icon}
-                  initialCount={myPeriodCount}
-                  target={challengeTarget}
-                  periodLabel={periodLabel}
-                />
-              }
+        <>
+          <section className="px-5 pt-6 flex justify-center">
+            <PactCircle
+              pactId={pact.id}
+              icon={pact.icon}
+              initialCount={myPeriodCount}
+              target={challengeTarget}
+              periodLabel={periodLabel}
             />
-          ) : (
-            <div className="px-5 flex justify-center">
-              <PactCircle
-                pactId={pact.id}
-                icon={pact.icon}
-                initialCount={myPeriodCount}
-                target={challengeTarget}
-                periodLabel={periodLabel}
-              />
-            </div>
-          )}
-        </section>
+          </section>
+          <section className="px-5 pt-5 flex items-stretch gap-3">
+            {challenge.metric_kind && (
+              <div
+                className="flex-1 flex items-center px-4"
+                style={{
+                  background: "var(--card)",
+                  border: "1.5px solid var(--accent-soft)",
+                  borderRadius: "var(--radius)",
+                  minHeight: 84,
+                }}
+              >
+                <MetricSideBySide
+                  metricKind={challenge.metric_kind as "count" | "minutes"}
+                  metricName={challenge.metric_name}
+                  completions={(recentCompletions ?? []).map((c) => ({
+                    user_id: c.user_id,
+                    metric_value: c.metric_value,
+                    completed_at: c.completed_at,
+                  }))}
+                />
+              </div>
+            )}
+            <Link
+              href={`/pacts/${pact.id}/logbook`}
+              aria-label="Open your private logbook"
+              className="press flex-1 flex flex-col items-center justify-center gap-2 px-4"
+              style={{
+                background: "var(--accent-soft)",
+                border: "1.5px solid var(--accent)",
+                borderRadius: "var(--radius)",
+                color: "var(--accent)",
+                minHeight: 84,
+                fontFamily: "var(--font-stat-mono)",
+                fontSize: 11,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                fontWeight: 600,
+              }}
+            >
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M2 4.5C2 3.67 2.67 3 3.5 3H10a3 3 0 0 1 3 3v15a2 2 0 0 0-2-2H3.5A1.5 1.5 0 0 1 2 17.5v-13Z" />
+                <path d="M22 4.5C22 3.67 21.33 3 20.5 3H14a3 3 0 0 0-3 3v15a2 2 0 0 1 2-2h7.5a1.5 1.5 0 0 0 1.5-1.5v-13Z" />
+              </svg>
+              logbook
+            </Link>
+          </section>
+        </>
       )}
 
       {challenge && myCurrentCompletion && !myCurrentCompletion.note && (
@@ -554,6 +542,8 @@ export default async function PactPage({
                 name="completion_id"
                 value={myCurrentCompletion.id}
               />
+              <VisibilityToggle />
+
               <textarea
                 name="note"
                 rows={2}
