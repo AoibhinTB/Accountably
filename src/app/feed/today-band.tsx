@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { saveNoteInline, toggleQuickLog } from "@/app/pacts/actions";
 import { timeAgo } from "@/lib/period";
+
+// Hold this long to log a check-in. Pointer-up before this fires a tap
+// (navigates to the pact). Anywhere between START_TAP_MS and HOLD_MS is a
+// cancelled hold.
+const HOLD_MS = 750;
+const START_TAP_MS = 220;
 
 export type TodayPact = {
   id: string;
@@ -67,10 +74,11 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
   );
   const [, startTransition] = useTransition();
   const [prompt, setPrompt] = useState<NotePrompt | null>(null);
+  const router = useRouter();
 
   if (optimistic.length === 0) return null;
 
-  const onTap = (pact: TodayPact) => {
+  const fireLog = (pact: TodayPact) => {
     startTransition(async () => {
       applyOptimistic(pact.id);
       const result = await toggleQuickLog(pact.id);
@@ -90,6 +98,81 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
     });
   };
 
+  const navigate = (pact: TodayPact) => {
+    router.push(`/pacts/${pact.id}`);
+  };
+
+  // Hold state: which pact is being held and how far along (0..1). Stays
+  // null when no hold is active. State lives at the band level so we can
+  // only hold one pact at a time and the right cell gets the animated fill.
+  const [hold, setHold] = useState<{ pactId: string; progress: number } | null>(
+    null,
+  );
+  const holdRef = useRef({
+    startTime: 0,
+    startX: 0,
+    startY: 0,
+    rafId: 0,
+    fired: false,
+    pactId: "",
+  });
+  const cancelHold = () => {
+    if (holdRef.current.rafId) {
+      cancelAnimationFrame(holdRef.current.rafId);
+      holdRef.current.rafId = 0;
+    }
+    holdRef.current.startTime = 0;
+    setHold(null);
+  };
+
+  const onPointerDown = (e: React.PointerEvent, pact: TodayPact) => {
+    holdRef.current.startTime = performance.now();
+    holdRef.current.startX = e.clientX;
+    holdRef.current.startY = e.clientY;
+    holdRef.current.fired = false;
+    holdRef.current.pactId = pact.id;
+    setHold({ pactId: pact.id, progress: 0 });
+    const tick = () => {
+      if (!holdRef.current.startTime) return;
+      const elapsed = performance.now() - holdRef.current.startTime;
+      const progress = Math.min(elapsed / HOLD_MS, 1);
+      setHold({ pactId: pact.id, progress });
+      if (progress >= 1 && !holdRef.current.fired) {
+        holdRef.current.fired = true;
+        holdRef.current.startTime = 0;
+        fireLog(pact);
+        // Drop the hold overlay a moment after the log fires so the count
+        // updates from the server have a chance to land.
+        setTimeout(() => setHold(null), 180);
+        return;
+      }
+      holdRef.current.rafId = requestAnimationFrame(tick);
+    };
+    holdRef.current.rafId = requestAnimationFrame(tick);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!holdRef.current.startTime) return;
+    const dx = e.clientX - holdRef.current.startX;
+    const dy = e.clientY - holdRef.current.startY;
+    if (Math.hypot(dx, dy) > 10) {
+      cancelHold();
+    }
+  };
+
+  const onPointerUp = (pact: TodayPact) => {
+    if (holdRef.current.fired) return;
+    const elapsed = performance.now() - holdRef.current.startTime;
+    cancelHold();
+    if (elapsed > 0 && elapsed < START_TAP_MS) {
+      navigate(pact);
+    }
+  };
+
+  const onPointerCancel = () => {
+    if (!holdRef.current.fired) cancelHold();
+  };
+
   return (
     <>
       <section className="mb-7">
@@ -107,17 +190,26 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
             <li key={p.id} className="snap-start" style={{ flex: "0 0 auto" }}>
               <button
                 type="button"
-                onClick={() => onTap(p)}
+                onPointerDown={(e) => onPointerDown(e, p)}
+                onPointerMove={onPointerMove}
+                onPointerUp={() => onPointerUp(p)}
+                onPointerCancel={onPointerCancel}
+                onPointerLeave={onPointerCancel}
                 aria-pressed={p.myCount >= p.target}
-                aria-label={`Log ${p.name} for ${p.frequency === "daily" ? "today" : "this week"}`}
+                aria-label={`${p.name} — tap to open, hold to log for ${p.frequency === "daily" ? "today" : "this week"}`}
                 className="press flex flex-col items-center gap-1.5"
-                style={{ width: 96, touchAction: "pan-x" }}
+                style={{
+                  width: 96,
+                  touchAction: "pan-x",
+                  userSelect: "none",
+                }}
               >
                 <CompletionDisk
                   count={p.myCount}
                   target={p.target}
                   icon={p.icon}
                   nudged={!!p.nudgedAt}
+                  holdProgress={hold?.pactId === p.id ? hold.progress : 0}
                 />
                 <div
                   className="w-full truncate text-center"
@@ -423,15 +515,21 @@ function CompletionDisk({
   target,
   icon,
   nudged,
+  holdProgress = 0,
 }: {
   count: number;
   target: number;
   icon: string | null;
   nudged: boolean;
+  holdProgress?: number;
 }) {
   const safeTarget = Math.max(1, target);
   const filled = Math.min(count, safeTarget);
-  const progress = filled / safeTarget;
+  const baseProgress = filled / safeTarget;
+  // Holding adds one slice (1/target) on top of the current progress, so
+  // the ring visibly grows as the user holds. The actual count update
+  // arrives from the server when the hold completes and the log fires.
+  const progress = Math.min(1, baseProgress + holdProgress / safeTarget);
   const fullyDone = filled >= safeTarget;
 
   const SIZE = 76;
@@ -478,7 +576,7 @@ function CompletionDisk({
             stroke="var(--line-strong)"
             strokeWidth={STROKE}
           />
-          {count > 0 && (
+          {progress > 0 && (
             <circle
               cx={SIZE / 2}
               cy={SIZE / 2}
