@@ -118,22 +118,6 @@ export default async function LogbookPage({
     journalPromise,
   ]);
 
-  const now = new Date();
-  const totals = metricKind
-    ? [
-        { label: "today", start: startOfDay(now) },
-        { label: "this week", start: startOfWeek(now) },
-        { label: "this month", start: startOfMonth(now) },
-        { label: "this year", start: startOfYear(now) },
-        { label: "all time", start: null as Date | null },
-      ].map(({ label, start }) => {
-        const total = (completions ?? [])
-          .filter((c) => !start || new Date(c.completed_at) >= start)
-          .reduce((acc, c) => acc + (c.metric_value ?? 0), 0);
-        return { label, ...formatMetric(total, metricKind, metricName) };
-      })
-    : null;
-
   // Surface both public and private notes the user posted on their own
   // check-ins. Each row keeps its visibility so we can label it.
   const myNotes = (completions ?? [])
@@ -201,68 +185,65 @@ export default async function LogbookPage({
 
       <CalendarMonth
         completions={(completions ?? []).map((c) => ({
+          id: c.id,
           completed_at: c.completed_at,
+          note: c.note,
+          private_note: c.private_note,
+          metric_value: c.metric_value,
         }))}
+        metricKind={metricKind}
+        metricName={metricName}
       />
 
       <section className="mb-6">
-        <div className="label mb-2">add a private entry</div>
-        <JournalForm pactId={pact.id} />
-      </section>
-
-      {totals && (
-        <details
-          className="group mb-6"
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--line)",
-            borderRadius: "var(--radius)",
-          }}
-        >
+        <details className="group">
           <summary
             className="press flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden"
-            style={{ padding: "0 16px" }}
-          >
-            <span className="label">your totals</span>
-            <span
-              className="label"
-              style={{ fontSize: 9, color: "var(--mute)" }}
-            >
-              tap to view
-            </span>
-          </summary>
-          <ul
-            className="overflow-hidden"
             style={{
-              borderTop: "1px solid var(--line)",
+              padding: "0 16px",
+              background: "var(--card)",
+              border: "1.5px dashed var(--line-strong)",
+              borderRadius: "var(--radius)",
+              color: "var(--ink-soft)",
             }}
           >
-            {totals.map((t, i, arr) => (
-              <li
-                key={t.label}
-                className="flex items-baseline justify-between p-3"
-                style={{
-                  borderBottom:
-                    i < arr.length - 1 ? "1px solid var(--line)" : "none",
-                }}
+            <span
+              className="inline-flex items-center gap-2"
+              style={{
+                fontFamily: "var(--font-stat-mono)",
+                fontSize: 12,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                fontWeight: 600,
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
               >
-                <span className="label">{t.label}</span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-stat-mono)",
-                    fontSize: 14,
-                    color: t.number === "0" ? "var(--mute)" : "var(--ink)",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {t.number}
-                  {t.unit ? ` ${t.unit}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              add private entry
+            </span>
+            <span
+              className="label group-open:hidden"
+              style={{ fontSize: 9, color: "var(--mute)" }}
+            >
+              tap
+            </span>
+          </summary>
+          <div className="mt-3">
+            <JournalForm pactId={pact.id} />
+          </div>
         </details>
-      )}
+      </section>
 
       {(journal ?? []).length > 0 && (
         <section className="mb-6">
