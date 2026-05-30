@@ -376,8 +376,6 @@ export default async function PactPage({
           {challenge && (
             <div className="label mt-1">
               {cadenceLabel(challenge.frequency, challenge.days_of_week)}
-              {" · since "}
-              {formatDate(challenge.start_date)}
               {challenge.end_date && ` · until ${formatDate(challenge.end_date)}`}
             </div>
           )}
@@ -434,10 +432,15 @@ export default async function PactPage({
           <section className="px-5 pt-6 flex justify-center">
             <PactCircle
               pactId={pact.id}
+              pactName={pact.name}
               icon={pact.icon}
               initialCount={myPeriodCount}
               target={challengeTarget}
               periodLabel={periodLabel}
+              metricKind={
+                (challenge.metric_kind as "count" | "minutes" | null) ?? null
+              }
+              metricName={challenge.metric_name}
             />
           </section>
           <section className="px-5 pt-5 flex items-stretch gap-3">

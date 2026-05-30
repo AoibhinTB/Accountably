@@ -1,60 +1,141 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { toggleQuickLog } from "../actions";
+import { NoteSheet, type NoteSheetPrompt } from "@/components/note-sheet";
+
+// Same gesture model as the homepage today-band: nothing happens on a
+// quick tap; press-and-hold until the ring completes one slice fires a
+// log. The fill animation only starts after START_TAP_MS so a stray
+// touch never shows progress.
+const HOLD_MS = 850;
+const START_TAP_MS = 200;
 
 export function PactCircle({
   pactId,
+  pactName,
   icon,
   initialCount,
   target,
   periodLabel,
+  metricKind,
+  metricName,
 }: {
   pactId: string;
+  pactName: string;
   icon: string | null;
   initialCount: number;
   target: number;
-  periodLabel: string; // "today" or "this week"
+  periodLabel: string;
+  metricKind: "count" | "minutes" | null;
+  metricName: string | null;
 }) {
   const [count, applyOptimistic] = useOptimistic<number, "tap">(
     initialCount,
     (state) => {
-      // Cycle: once we are at target, the next tap wraps back to 0.
-      // Otherwise add one. Works for single-target (target=1) too.
       return state >= Math.max(1, target) ? 0 : state + 1;
     },
   );
   const [isPending, startTransition] = useTransition();
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [prompt, setPrompt] = useState<NoteSheetPrompt | null>(null);
+
+  const holdRef = useRef({
+    startTime: 0,
+    startX: 0,
+    startY: 0,
+    rafId: 0,
+    fired: false,
+  });
 
   const safeTarget = Math.max(1, target);
-  const filled = Math.min(count, safeTarget);
-  const progress = filled / safeTarget;
-  const fullyDone = filled >= safeTarget;
+  const baseFilled = Math.min(count, safeTarget);
+  const baseProgress = baseFilled / safeTarget;
+  // The ring grows by one full slice (1/target) during the hold so the
+  // user sees they are about to add one check-in.
+  const progress = Math.min(1, baseProgress + holdProgress / safeTarget);
+  const fullyDone = baseFilled >= safeTarget;
 
-  const onTap = () => {
+  const fireLog = () => {
     startTransition(async () => {
       applyOptimistic("tap");
       const result = await toggleQuickLog(pactId);
       if (!result.ok) {
         console.error("toggleQuickLog failed:", result.error);
+        return;
+      }
+      if (result.done) {
+        setPrompt({
+          pactName,
+          completionId: result.completionId,
+          metricKind,
+          metricName,
+        });
       }
     });
+  };
+
+  const cancelHold = () => {
+    if (holdRef.current.rafId) {
+      cancelAnimationFrame(holdRef.current.rafId);
+      holdRef.current.rafId = 0;
+    }
+    holdRef.current.startTime = 0;
+    setHoldProgress(0);
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    holdRef.current.startTime = performance.now();
+    holdRef.current.startX = e.clientX;
+    holdRef.current.startY = e.clientY;
+    holdRef.current.fired = false;
+    const tick = () => {
+      if (!holdRef.current.startTime) return;
+      const elapsed = performance.now() - holdRef.current.startTime;
+      const p =
+        elapsed <= START_TAP_MS
+          ? 0
+          : Math.min((elapsed - START_TAP_MS) / (HOLD_MS - START_TAP_MS), 1);
+      setHoldProgress(p);
+      if (p >= 1 && !holdRef.current.fired) {
+        holdRef.current.fired = true;
+        holdRef.current.startTime = 0;
+        fireLog();
+        setTimeout(() => setHoldProgress(0), 180);
+        return;
+      }
+      holdRef.current.rafId = requestAnimationFrame(tick);
+    };
+    holdRef.current.rafId = requestAnimationFrame(tick);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!holdRef.current.startTime) return;
+    const dx = e.clientX - holdRef.current.startX;
+    const dy = e.clientY - holdRef.current.startY;
+    if (Math.hypot(dx, dy) > 10) cancelHold();
+  };
+
+  const onPointerUp = () => {
+    if (holdRef.current.fired) return;
+    cancelHold();
+  };
+
+  const onPointerCancel = () => {
+    if (!holdRef.current.fired) cancelHold();
   };
 
   const label =
     safeTarget === 1
       ? fullyDone
         ? `${periodLabel} done`
-        : `tap to log ${periodLabel}`
+        : `hold to log ${periodLabel}`
       : fullyDone
-        ? "log another"
-        : `${count}/${safeTarget} done`;
+        ? "hold to log again"
+        : `${count}/${safeTarget} · hold to log`;
 
   const labelColor = fullyDone ? "var(--accent)" : "var(--ink-soft)";
 
-  // SVG progress ring constants. The static outline circle and the progress
-  // arc share centre + radius so they trace the same path. Radius leaves
-  // exactly half a stroke worth of space at the button edge.
   const SIZE = 84;
   const STROKE = 1.5;
   const PROGRESS_STROKE = 6;
@@ -65,22 +146,20 @@ export function PactCircle({
     <div className="flex flex-col items-center gap-2">
       <button
         type="button"
-        onClick={onTap}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onPointerLeave={onPointerCancel}
         disabled={isPending}
         aria-pressed={fullyDone}
-        aria-label={
-          fullyDone ? `Log another ${periodLabel}` : `Mark ${periodLabel}`
-        }
+        aria-label={`Hold to log ${periodLabel}`}
         className="press"
         style={{
           width: SIZE,
           height: SIZE,
           borderRadius: "50%",
           background: fullyDone ? "var(--accent)" : "var(--card)",
-          // No CSS border — the outline is drawn by the SVG as a static
-          // circle behind the progress arc. This keeps padding-box and
-          // border-box identical so absolutely-positioned SVG children
-          // line up perfectly with the button.
           border: "none",
           boxSizing: "border-box",
           boxShadow: fullyDone
@@ -93,6 +172,10 @@ export function PactCircle({
           alignItems: "center",
           justifyContent: "center",
           padding: 0,
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          WebkitTouchCallout: "none",
+          WebkitTapHighlightColor: "transparent",
         }}
       >
         {!fullyDone && (
@@ -108,8 +191,6 @@ export function PactCircle({
             }}
             aria-hidden
           >
-            {/* Static outline — same path as the progress arc, so the arc
-                sits exactly on top of the outline as it grows. */}
             <circle
               cx={SIZE / 2}
               cy={SIZE / 2}
@@ -118,7 +199,7 @@ export function PactCircle({
               stroke="var(--line-strong)"
               strokeWidth={STROKE}
             />
-            {count > 0 && (
+            {progress > 0 && (
               <circle
                 cx={SIZE / 2}
                 cy={SIZE / 2}
@@ -141,6 +222,10 @@ export function PactCircle({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            WebkitTouchCallout: "none",
+            pointerEvents: "none",
           }}
         >
           {fullyDone ? (
@@ -189,11 +274,14 @@ export function PactCircle({
           fontWeight: 600,
           textAlign: "center",
           lineHeight: 1.2,
-          maxWidth: 100,
+          maxWidth: 120,
         }}
       >
         {label}
       </div>
+      {prompt && (
+        <NoteSheet prompt={prompt} onClose={() => setPrompt(null)} />
+      )}
     </div>
   );
 }
