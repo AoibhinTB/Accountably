@@ -470,8 +470,8 @@ export default async function PactPage({
               aria-label="Open your private logbook"
               className="press flex-1 flex flex-col items-center justify-center gap-2 px-4"
               style={{
-                background: "var(--accent-soft)",
-                border: "1.5px solid var(--accent)",
+                background: "var(--card)",
+                border: "1.5px solid var(--accent-soft)",
                 borderRadius: "var(--radius)",
                 color: "var(--accent)",
                 minHeight: 84,

@@ -64,6 +64,7 @@ export async function deleteSubscription(
 type NotifPrefs = {
   notif_nudges?: boolean;
   notif_checkins?: boolean;
+  reminders_enabled?: boolean;
 };
 
 // Updates the current user's notification preferences. Only the fields
@@ -85,6 +86,9 @@ export async function updateNotificationPrefs(
   }
   if (typeof prefs.notif_checkins === "boolean") {
     update.notif_checkins = prefs.notif_checkins;
+  }
+  if (typeof prefs.reminders_enabled === "boolean") {
+    update.reminders_enabled = prefs.reminders_enabled;
   }
   if (Object.keys(update).length === 0) return { ok: true };
 

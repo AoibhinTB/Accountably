@@ -74,6 +74,21 @@ export async function GET(request: Request) {
   }
   const candidates = candidatesRaw ?? [];
 
+  // Resolve the master reminders_enabled flag per candidate user so we can
+  // skip every reminder for users who turned reminders off globally. One
+  // batched profiles lookup beats a per-row query.
+  const userIds = Array.from(new Set(candidates.map((c) => c.user_id)));
+  const remindersAllowed = new Map<string, boolean>();
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, reminders_enabled")
+      .in("id", userIds);
+    for (const p of profiles ?? []) {
+      remindersAllowed.set(p.id, p.reminders_enabled !== false);
+    }
+  }
+
   const todayDayIdx = (now.getUTCDay() + 6) % 7;
   const dayStart = new Date(now);
   dayStart.setUTCHours(0, 0, 0, 0);
@@ -82,6 +97,10 @@ export async function GET(request: Request) {
   let skipped = 0;
 
   for (const c of candidates) {
+    if (remindersAllowed.get(c.user_id) === false) {
+      skipped++;
+      continue;
+    }
     if (!c.groups) {
       skipped++;
       continue;

@@ -6,6 +6,7 @@ import { updateNotificationPrefs } from "../notifications-actions";
 type Initial = {
   notif_nudges?: boolean | null;
   notif_checkins?: boolean | null;
+  reminders_enabled?: boolean | null;
 };
 
 // Global per-type push toggles. Per-pact reminders live on the pact detail
@@ -14,10 +15,17 @@ type Initial = {
 export function PrefsForm({ initial }: { initial: Initial }) {
   const [nudges, setNudges] = useState(initial.notif_nudges ?? true);
   const [checkins, setCheckins] = useState(initial.notif_checkins ?? true);
+  const [reminders, setReminders] = useState(
+    initial.reminders_enabled ?? true,
+  );
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  const save = (patch: { notif_nudges?: boolean; notif_checkins?: boolean }) => {
+  const save = (patch: {
+    notif_nudges?: boolean;
+    notif_checkins?: boolean;
+    reminders_enabled?: boolean;
+  }) => {
     setError(null);
     startTransition(async () => {
       const result = await updateNotificationPrefs(patch);
@@ -37,6 +45,12 @@ export function PrefsForm({ initial }: { initial: Initial }) {
     save({ notif_checkins: next });
   };
 
+  const toggleReminders = () => {
+    const next = !reminders;
+    setReminders(next);
+    save({ reminders_enabled: next });
+  };
+
   return (
     <>
       <ul
@@ -50,16 +64,20 @@ export function PrefsForm({ initial }: { initial: Initial }) {
         <Row label="nudges" hint="when someone nudges you" divider>
           <Switch on={nudges} onClick={toggleNudges} />
         </Row>
-        <Row label="check-ins" hint="when someone in your pact checks in">
+        <Row
+          label="check-ins"
+          hint="when someone in your pact checks in"
+          divider
+        >
           <Switch on={checkins} onClick={toggleCheckins} />
         </Row>
+        <Row
+          label="pact reminders"
+          hint="master switch — per-pact times still configured on each pact"
+        >
+          <Switch on={reminders} onClick={toggleReminders} />
+        </Row>
       </ul>
-      <p
-        className="label mt-3"
-        style={{ fontSize: 11, color: "var(--ink-soft)" }}
-      >
-        per-pact reminders live on each pact (tap the pencil on the pact page).
-      </p>
       {error && (
         <p
           className="mt-3 text-xs"

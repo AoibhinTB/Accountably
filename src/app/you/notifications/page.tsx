@@ -8,6 +8,7 @@ import { PrefsForm } from "./prefs-form";
 type Prefs = {
   notif_nudges: boolean | null;
   notif_checkins: boolean | null;
+  reminders_enabled: boolean | null;
 };
 
 export default async function NotificationsPrefsPage() {
@@ -19,7 +20,7 @@ export default async function NotificationsPrefsPage() {
 
   const { data: prefs } = await supabase
     .from("profiles")
-    .select("notif_nudges, notif_checkins")
+    .select("notif_nudges, notif_checkins, reminders_enabled")
     .eq("id", user.id)
     .maybeSingle<Prefs>();
 
@@ -65,6 +66,7 @@ export default async function NotificationsPrefsPage() {
         initial={{
           notif_nudges: prefs?.notif_nudges ?? true,
           notif_checkins: prefs?.notif_checkins ?? true,
+          reminders_enabled: prefs?.reminders_enabled ?? true,
         }}
       />
     </main>
