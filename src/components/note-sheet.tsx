@@ -24,6 +24,7 @@ export function NoteSheet({
 }) {
   const [note, setNote] = useState("");
   const [metric, setMetric] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [isSaving, startSaving] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -61,6 +62,7 @@ export function NoteSheet({
         prompt.completionId,
         trimmed || null,
         validMetric,
+        visibility,
       );
       if (!result.ok) {
         console.error("saveNoteInline failed:", result.error);
@@ -164,8 +166,23 @@ export function NoteSheet({
         >
           {prompt.dateLabel
             ? `note attached to your ${prompt.dateLabel} check-in`
-            : "leave a note for the group? totally optional."}
+            : "leave a note? totally optional."}
         </p>
+
+        <div className="mt-3 flex items-center gap-2">
+          <VisibilityChip
+            label="public"
+            sublabel="group sees"
+            active={visibility === "public"}
+            onClick={() => setVisibility("public")}
+          />
+          <VisibilityChip
+            label="private"
+            sublabel="just you"
+            active={visibility === "private"}
+            onClick={() => setVisibility("private")}
+          />
+        </div>
 
         <textarea
           ref={textareaRef}
@@ -173,7 +190,11 @@ export function NoteSheet({
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           maxLength={500}
-          placeholder="how did it go?"
+          placeholder={
+            visibility === "private"
+              ? "just for you — what to remember about today?"
+              : "how did it go?"
+          }
           className="mt-3 w-full resize-none outline-none"
           style={{
             background: "var(--card)",
@@ -248,10 +269,71 @@ export function NoteSheet({
               fontSize: 15,
             }}
           >
-            {isSaving ? "saving…" : "save note"}
+            {isSaving
+              ? "saving…"
+              : visibility === "private"
+                ? "save private note"
+                : "save note"}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+function VisibilityChip({
+  label,
+  sublabel,
+  active,
+  onClick,
+}: {
+  label: string;
+  sublabel: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="press flex-1"
+      style={{
+        padding: "8px 12px",
+        borderRadius: "var(--radius)",
+        background: active ? "var(--accent-soft)" : "var(--card)",
+        border: active
+          ? "1.5px solid var(--accent)"
+          : "1.5px solid var(--line)",
+        color: active ? "var(--accent)" : "var(--ink-soft)",
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "var(--font-stat-mono)",
+          fontSize: 11,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          fontWeight: 600,
+          lineHeight: 1,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: "var(--font-stat-mono)",
+          fontSize: 9,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          color: active ? "var(--accent)" : "var(--mute)",
+          marginTop: 2,
+          opacity: 0.85,
+        }}
+      >
+        {sublabel}
+      </div>
+    </button>
   );
 }

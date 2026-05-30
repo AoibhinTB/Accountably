@@ -615,11 +615,14 @@ export async function deleteCompletion(
 // Client-callable variant of saveCompletionNote — no redirect, used by the
 // Feed today-band's post-log note sheet and the per-pact notes history.
 // Passing metricValue as undefined leaves the column untouched; passing
-// null clears it; passing a number sets it.
+// null clears it; passing a number sets it. `visibility` chooses which
+// note column to write: "public" → notes.note (group sees), "private" →
+// notes.private_note (only the author's logbook surfaces).
 export async function saveNoteInline(
   completionId: string,
   note: string | null,
   metricValue?: number | null,
+  visibility: "public" | "private" = "public",
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!completionId) return { ok: false, error: "Missing completion" };
 
@@ -642,9 +645,12 @@ export async function saveNoteInline(
     };
   }
 
-  const update: Record<string, string | number | null> = {
-    note: note ?? null,
-  };
+  const update: Record<string, string | number | null> = {};
+  if (visibility === "private") {
+    update.private_note = note ?? null;
+  } else {
+    update.note = note ?? null;
+  }
   if (metricValue !== undefined) update.metric_value = metricValue;
 
   const { data, error } = await supabase

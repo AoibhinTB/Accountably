@@ -7,11 +7,12 @@ import { toggleQuickLog } from "@/app/pacts/actions";
 import { NoteSheet, type NoteSheetPrompt } from "@/components/note-sheet";
 import { timeAgo } from "@/lib/period";
 
-// Hold this long to log a check-in. Pointer-up before this fires a tap
-// (navigates to the pact). Anywhere between START_TAP_MS and HOLD_MS is a
-// cancelled hold.
-const HOLD_MS = 750;
-const START_TAP_MS = 220;
+// Hold this long to log a check-in. Pointer-up before START_TAP_MS fires
+// a tap (navigates to the pact); anywhere between START_TAP_MS and HOLD_MS
+// is a cancelled hold. The fill ring stays at zero for the first
+// START_TAP_MS so a quick tap never shows any progress.
+const HOLD_MS = 850;
+const START_TAP_MS = 200;
 
 export type TodayPact = {
   id: string;
@@ -129,7 +130,12 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
     const tick = () => {
       if (!holdRef.current.startTime) return;
       const elapsed = performance.now() - holdRef.current.startTime;
-      const progress = Math.min(elapsed / HOLD_MS, 1);
+      // No fill until we are past the tap window; then ramp linearly to 1
+      // by the time HOLD_MS is reached.
+      const progress =
+        elapsed <= START_TAP_MS
+          ? 0
+          : Math.min((elapsed - START_TAP_MS) / (HOLD_MS - START_TAP_MS), 1);
       setHold({ pactId: pact.id, progress });
       if (progress >= 1 && !holdRef.current.fired) {
         holdRef.current.fired = true;
@@ -196,6 +202,9 @@ export function TodayBand({ pacts }: { pacts: TodayPact[] }) {
                   width: 96,
                   touchAction: "pan-x",
                   userSelect: "none",
+                  WebkitUserSelect: "none",
+                  WebkitTouchCallout: "none",
+                  WebkitTapHighlightColor: "transparent",
                 }}
               >
                 <CompletionDisk
@@ -382,7 +391,18 @@ function CompletionDisk({
           }}
         >
           {icon ? (
-            <span style={{ fontSize: 30, lineHeight: 1 }}>{icon}</span>
+            <span
+              style={{
+                fontSize: 30,
+                lineHeight: 1,
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                WebkitTouchCallout: "none",
+                pointerEvents: "none",
+              }}
+            >
+              {icon}
+            </span>
           ) : (
             <svg
               width="30"

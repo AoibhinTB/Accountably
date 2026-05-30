@@ -323,17 +323,19 @@ export default async function PactPage({
                 <Link
                   href={`/pacts/${pact.id}/logbook`}
                   aria-label="Open your private logbook"
-                  className="press"
+                  className="press inline-flex items-center gap-1.5"
                   style={{
-                    width: 30,
                     height: 30,
-                    borderRadius: "50%",
-                    background: "var(--card)",
-                    border: "1px solid var(--line-strong)",
-                    color: "var(--ink-soft)",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    padding: "0 12px",
+                    borderRadius: 999,
+                    background: "var(--accent-soft)",
+                    border: "1px solid var(--accent)",
+                    color: "var(--accent)",
+                    fontFamily: "var(--font-stat-mono)",
+                    fontSize: 11,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    fontWeight: 600,
                   }}
                 >
                   <svg
@@ -350,6 +352,7 @@ export default async function PactPage({
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
                     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                   </svg>
+                  logbook
                 </Link>
                 <EditPactDialog
                   pactId={pact.id}

@@ -24,6 +24,7 @@ type Completion = {
   id: string;
   completed_at: string;
   note: string | null;
+  private_note: string | null;
   metric_value: number | null;
 };
 
@@ -96,7 +97,7 @@ export default async function LogbookPage({
   const completionsPromise = challenge
     ? supabase
         .from("completions")
-        .select("id, completed_at, note, metric_value")
+        .select("id, completed_at, note, private_note, metric_value")
         .eq("user_id", user.id)
         .eq("challenge_id", challenge.id)
         .order("completed_at", { ascending: false })
@@ -131,9 +132,42 @@ export default async function LogbookPage({
       })
     : null;
 
-  const myNotes = (completions ?? []).filter(
-    (c) => c.note && c.note.trim().length > 0,
-  );
+  // Surface both public and private notes the user posted on their own
+  // check-ins. Each row keeps its visibility so we can label it.
+  const myNotes = (completions ?? [])
+    .filter(
+      (c) =>
+        (c.note && c.note.trim().length > 0) ||
+        (c.private_note && c.private_note.trim().length > 0),
+    )
+    .flatMap((c) => {
+      const out: {
+        id: string;
+        completed_at: string;
+        body: string;
+        visibility: "public" | "private";
+        metric_value: number | null;
+      }[] = [];
+      if (c.note && c.note.trim().length > 0) {
+        out.push({
+          id: `${c.id}-pub`,
+          completed_at: c.completed_at,
+          body: c.note,
+          visibility: "public",
+          metric_value: c.metric_value,
+        });
+      }
+      if (c.private_note && c.private_note.trim().length > 0) {
+        out.push({
+          id: `${c.id}-priv`,
+          completed_at: c.completed_at,
+          body: c.private_note,
+          visibility: "private",
+          metric_value: c.metric_value,
+        });
+      }
+      return out;
+    });
 
   return (
     <main className="mx-auto w-full max-w-2xl px-5 pt-10 pb-28">
@@ -252,53 +286,95 @@ export default async function LogbookPage({
             className="label mb-3"
             style={{ fontSize: 10, color: "var(--mute)" }}
           >
-            these are the notes you posted on your own check-ins — visible to
-            your pact.
+            notes you attached to your own check-ins. public notes are shared
+            with the pact; private ones stay here.
           </p>
           <ul className="flex flex-col gap-2">
-            {myNotes.map((c) => (
-              <li
-                key={c.id}
-                className="p-3"
-                style={{
-                  background: "var(--card)",
-                  border: "1px solid var(--line)",
-                  borderRadius: "var(--radius)",
-                }}
-              >
-                <div
-                  className="label"
-                  style={{ fontSize: 10, color: "var(--mute)" }}
-                >
-                  {noteTimestamp(c.completed_at)}
-                  {c.metric_value !== null && metricKind && (
-                    <>
-                      {" · "}
-                      {(() => {
-                        const f = formatMetric(
-                          c.metric_value,
-                          metricKind,
-                          metricName,
-                        );
-                        return `${f.number}${f.unit ? ` ${f.unit}` : ""}`;
-                      })()}
-                    </>
-                  )}
-                </div>
-                <p
-                  className="mt-2 whitespace-pre-wrap"
+            {myNotes.map((c) => {
+              const metricChip =
+                c.metric_value !== null && metricKind
+                  ? (() => {
+                      const f = formatMetric(
+                        c.metric_value,
+                        metricKind,
+                        metricName,
+                      );
+                      return `${f.number}${f.unit ? ` ${f.unit}` : ""}`;
+                    })()
+                  : null;
+              const isPrivate = c.visibility === "private";
+              return (
+                <li
+                  key={c.id}
+                  className="p-3"
                   style={{
-                    fontSize: 14,
-                    color: "var(--ink)",
-                    lineHeight: 1.4,
-                    paddingLeft: 10,
-                    borderLeft: "2px solid var(--accent)",
+                    background: "var(--card)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--radius)",
                   }}
                 >
-                  {c.note}
-                </p>
-              </li>
-            ))}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="label"
+                        style={{ fontSize: 10, color: "var(--mute)" }}
+                      >
+                        {noteTimestamp(c.completed_at)}
+                      </div>
+                      <span
+                        className="label"
+                        style={{
+                          fontSize: 9,
+                          padding: "1px 8px",
+                          borderRadius: 999,
+                          background: isPrivate
+                            ? "var(--card-inset)"
+                            : "var(--accent-soft)",
+                          color: isPrivate
+                            ? "var(--ink-soft)"
+                            : "var(--accent)",
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {isPrivate ? "private" : "public"}
+                      </span>
+                    </div>
+                    {metricChip && (
+                      <span
+                        style={{
+                          padding: "2px 10px",
+                          borderRadius: 999,
+                          background: "var(--accent-soft)",
+                          color: "var(--accent)",
+                          fontFamily: "var(--font-stat-mono)",
+                          fontSize: 10.5,
+                          letterSpacing: "0.04em",
+                          textTransform: "uppercase",
+                          fontWeight: 600,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {metricChip}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className="mt-2 whitespace-pre-wrap"
+                    style={{
+                      fontSize: 14,
+                      color: "var(--ink)",
+                      lineHeight: 1.4,
+                      paddingLeft: 10,
+                      borderLeft: `2px solid ${isPrivate ? "var(--line-strong)" : "var(--accent)"}`,
+                    }}
+                  >
+                    {c.body}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

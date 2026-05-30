@@ -46,12 +46,32 @@ export async function notifyNudge(args: {
   });
 }
 
-// Sends "X checked in" to every pact member except the actor.
+// Sends "X checked in" to every pact member except the actor. Debounced to
+// 10 minutes per (actor, pact): if the same person already triggered a
+// notification recently we skip this one so cycling on/off does not spam
+// the pact.
+const COMPLETION_NOTIFY_DEBOUNCE_MS = 10 * 60 * 1000;
+
 export async function notifyCompletion(args: {
   actorUserId: string;
   pactId: string;
 }): Promise<void> {
   const supabase = createAdminClient();
+
+  // First check the debounce window. We read the actor's membership row
+  // here rather than batching with the other lookups because we want to
+  // skip the rest of the work when the debounce blocks us.
+  const { data: actorMembership } = await supabase
+    .from("group_members")
+    .select("last_completion_notify_at")
+    .eq("group_id", args.pactId)
+    .eq("user_id", args.actorUserId)
+    .maybeSingle();
+  if (actorMembership?.last_completion_notify_at) {
+    const lastMs = new Date(actorMembership.last_completion_notify_at).getTime();
+    if (Date.now() - lastMs < COMPLETION_NOTIFY_DEBOUNCE_MS) return;
+  }
+
   const [{ data: actor }, { data: group }, { data: members }] = await Promise.all([
     supabase
       .from("profiles")
@@ -89,4 +109,13 @@ export async function notifyCompletion(args: {
     body: `${actorName} checked in`,
     url: `/pacts/${args.pactId}`,
   });
+
+  // Stamp the actor's membership so we know not to fire again for the
+  // debounce window. Fire-and-forget: if this fails we just risk one
+  // duplicate notify on the next check-in.
+  await supabase
+    .from("group_members")
+    .update({ last_completion_notify_at: new Date().toISOString() })
+    .eq("group_id", args.pactId)
+    .eq("user_id", args.actorUserId);
 }
