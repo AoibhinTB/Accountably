@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Avatar } from "@/components/ui/avatar";
+import { Chevron } from "@/components/ui/chevron";
 import { ReactionBar } from "@/components/reactions/reaction-bar";
 import type { ReactionSummary } from "@/components/reactions/constants";
 import { saveNoteInline } from "../actions";
@@ -54,19 +55,36 @@ export function NotesHistory({
 
   return (
     <section className="px-5 pt-6">
-      <div className="label mb-2">notes</div>
-      <ul className="flex flex-col gap-2">
-        {notes.map((n) => (
-          <NoteRow
-            key={n.id}
-            note={n}
-            currentUserId={currentUserId}
-            metricKind={metricKind}
-            metricName={metricName}
-            revalidatePath={`/pacts/${pactId}`}
+      <details open className="group">
+        <summary
+          className="press flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden"
+          style={{ minHeight: 28 }}
+        >
+          <span className="label inline-flex items-center gap-1.5">
+            notes
+            <span style={{ color: "var(--mute)" }}>· {notes.length}</span>
+          </span>
+          <Chevron
+            direction="down"
+            size={12}
+            strokeWidth={2}
+            className="transition-transform group-open:rotate-180"
+            style={{ color: "var(--mute)" }}
           />
-        ))}
-      </ul>
+        </summary>
+        <ul className="mt-2 flex flex-col gap-2">
+          {notes.map((n) => (
+            <NoteRow
+              key={n.id}
+              note={n}
+              currentUserId={currentUserId}
+              metricKind={metricKind}
+              metricName={metricName}
+              revalidatePath={`/pacts/${pactId}`}
+            />
+          ))}
+        </ul>
+      </details>
     </section>
   );
 }

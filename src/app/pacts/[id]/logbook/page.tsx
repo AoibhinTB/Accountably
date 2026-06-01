@@ -12,6 +12,7 @@ type Challenge = {
   id: string;
   metric_kind: "count" | "minutes" | null;
   metric_name: string | null;
+  start_date: string;
   archived: boolean;
 };
 
@@ -86,7 +87,9 @@ export default async function LogbookPage({
 
   const { data: pact } = await supabase
     .from("groups")
-    .select("id, name, icon, challenges(id, metric_kind, metric_name, archived)")
+    .select(
+      "id, name, icon, challenges(id, metric_kind, metric_name, start_date, archived)",
+    )
     .eq("id", id)
     .maybeSingle<Pact>();
   if (!pact) notFound();
@@ -184,6 +187,8 @@ export default async function LogbookPage({
       />
 
       <CalendarMonth
+        pactId={pact.id}
+        startDate={challenge?.start_date ?? null}
         completions={(completions ?? []).map((c) => ({
           id: c.id,
           completed_at: c.completed_at,

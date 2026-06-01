@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { saveNoteInline, togglePeriodCompletion } from "../../actions";
 
 export type CalendarCompletion = {
   id: string;
@@ -67,10 +69,14 @@ function formatMetric(
 }
 
 export function CalendarMonth({
+  pactId,
+  startDate,
   completions,
   metricKind,
   metricName,
 }: {
+  pactId: string;
+  startDate: string | null;
   completions: CalendarCompletion[];
   metricKind: "count" | "minutes" | null;
   metricName: string | null;
@@ -177,7 +183,11 @@ export function CalendarMonth({
             const dayCompletions = completionsByDay.get(key) ?? [];
             const done = dayCompletions.length > 0;
             const isToday = key === todayKey;
-            const tappable = done;
+            const inRange =
+              inMonth &&
+              key <= todayKey &&
+              (!startDate || key >= startDate);
+            const tappable = done || inRange;
             const cellStyle: React.CSSProperties = {
               aspectRatio: "1 / 1",
               borderRadius: 8,
@@ -235,6 +245,7 @@ export function CalendarMonth({
       </div>
       {selected && (
         <DayDetailSheet
+          pactId={pactId}
           dateKey={selected}
           completions={completionsByDay.get(selected) ?? []}
           metricKind={metricKind}
@@ -247,18 +258,72 @@ export function CalendarMonth({
 }
 
 function DayDetailSheet({
+  pactId,
   dateKey,
   completions,
   metricKind,
   metricName,
   onClose,
 }: {
+  pactId: string;
   dateKey: string;
   completions: CalendarCompletion[];
   metricKind: "count" | "minutes" | null;
   metricName: string | null;
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const [draftNote, setDraftNote] = useState("");
+  const [draftMetric, setDraftMetric] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const submitRetroactive = () => {
+    setError(null);
+    const trimmed = draftNote.trim();
+    const parsedMetric =
+      draftMetric.trim() === ""
+        ? null
+        : Math.max(0, parseInt(draftMetric, 10));
+    const metricToSave =
+      parsedMetric === null || Number.isFinite(parsedMetric)
+        ? parsedMetric
+        : null;
+
+    startTransition(async () => {
+      const insert = await togglePeriodCompletion(pactId, dateKey);
+      if (!insert.ok) {
+        setError(insert.error);
+        return;
+      }
+      // Server cycles when at-target; if it returned done:false we hit cycle
+      // semantics on a day that already had a completion. Surface that.
+      if (!insert.done) {
+        setError("already checked in for this day");
+        router.refresh();
+        return;
+      }
+      const needsFollowUp =
+        trimmed.length > 0 || (metricKind && metricToSave !== null);
+      if (needsFollowUp) {
+        const result = await saveNoteInline(
+          insert.completionId,
+          trimmed || null,
+          metricKind ? metricToSave : undefined,
+          visibility,
+        );
+        if (!result.ok) {
+          setError(result.error);
+          router.refresh();
+          return;
+        }
+      }
+      setDraftNote("");
+      setDraftMetric("");
+      router.refresh();
+    });
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -413,7 +478,7 @@ function DayDetailSheet({
         </ul>
 
         {notes.length > 0 && (
-          <div>
+          <div className="mb-4">
             <div className="label mb-2">notes</div>
             <ul className="flex flex-col gap-2">
               {notes.map((n) => (
@@ -468,6 +533,121 @@ function DayDetailSheet({
             </ul>
           </div>
         )}
+
+        <div>
+          <div className="label mb-2">
+            {checkIns === 0 ? "log this day" : "add another check-in"}
+          </div>
+          <div
+            className="p-3 flex flex-col gap-2.5"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            <div className="flex gap-1.5">
+              {(["public", "private"] as const).map((v) => {
+                const active = visibility === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setVisibility(v)}
+                    className="press"
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: 999,
+                      background: active ? "var(--accent)" : "transparent",
+                      color: active ? "#fff" : "var(--ink-soft)",
+                      border: active
+                        ? "1px solid var(--accent)"
+                        : "1px solid var(--line-strong)",
+                      fontFamily: "var(--font-stat-mono)",
+                      fontSize: 10.5,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {v}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea
+              value={draftNote}
+              onChange={(e) => setDraftNote(e.target.value)}
+              rows={2}
+              maxLength={500}
+              placeholder="how did it go? (optional)"
+              className="w-full resize-none outline-none"
+              style={{
+                background: "var(--card-inset)",
+                border: "1.5px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: 10,
+                fontSize: 15,
+                color: "var(--ink)",
+                fontFamily: "var(--font-display)",
+                fontStyle: "italic",
+              }}
+            />
+            {metricKind && (
+              <label className="block">
+                <span className="label">
+                  {metricKind === "minutes" ? "minutes" : metricName ?? "units"}{" "}
+                  <span style={{ opacity: 0.6 }}>(optional)</span>
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={draftMetric}
+                  onChange={(e) => setDraftMetric(e.target.value)}
+                  placeholder="0"
+                  className="mt-1 w-full outline-none"
+                  style={{
+                    height: 38,
+                    background: "var(--card-inset)",
+                    border: "1.5px solid var(--line)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "0 12px",
+                    fontSize: 14,
+                    color: "var(--ink)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                />
+              </label>
+            )}
+            {error && (
+              <div className="text-xs" style={{ color: "var(--accent)" }}>
+                {error}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={submitRetroactive}
+              disabled={pending}
+              className="press self-start"
+              style={{
+                padding: "8px 16px",
+                borderRadius: 999,
+                background: "var(--accent)",
+                color: "#fff",
+                border: "none",
+                fontFamily: "var(--font-stat-mono)",
+                fontSize: 11,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                fontWeight: 600,
+              }}
+            >
+              {pending ? "logging…" : "check in"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

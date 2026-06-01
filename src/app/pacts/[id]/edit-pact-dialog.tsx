@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Avatar } from "@/components/ui/avatar";
 import { Chevron } from "@/components/ui/chevron";
 import { ConfirmForm } from "@/components/confirm-form";
 import { HowOftenPicker } from "@/components/ui/how-often-picker";
@@ -9,22 +8,13 @@ import { IconPicker } from "@/components/ui/icon-picker";
 import { MetricPicker } from "@/components/ui/metric-picker";
 import { TargetPicker } from "@/components/ui/target-picker";
 import { SubmitButton } from "@/components/submit-button";
-import { formatDate } from "@/lib/period";
 import { deletePact, updatePact } from "../actions";
-import { InviteLink } from "./invite-link";
 import { updatePactReminder } from "@/app/you/notifications-actions";
 
 // Other components on the pact-detail page (the hero-icon button) dispatch
 // this event on window to open the dialog. Keeps the trigger sites
 // decoupled from the dialog state.
 export const OPEN_EDIT_PACT_EVENT = "open-edit-pact";
-
-type Member = {
-  user_id: string;
-  joined_at: string;
-  display_name: string;
-  avatar_color_index: number | null;
-};
 
 type Props = {
   pactId: string;
@@ -46,10 +36,6 @@ type Props = {
     time: string | null;
     timezone: string | null;
   };
-  members: Member[];
-  createdById: string;
-  inviteUrl: string;
-  inviteCode: string;
 };
 
 export function EditPactDialog({
@@ -59,10 +45,6 @@ export function EditPactDialog({
   challenge,
   isCreator,
   reminder,
-  members,
-  createdById,
-  inviteUrl,
-  inviteCode,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -373,112 +355,6 @@ export function EditPactDialog({
                 save changes
               </SubmitButton>
             </form>
-
-            <details className="group mt-4">
-              <summary
-                className="press flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden"
-                style={{
-                  background: "var(--card)",
-                  border: "1px solid var(--line)",
-                  borderRadius: "var(--radius)",
-                  padding: "0 18px",
-                  fontFamily: "var(--font-body)",
-                  fontWeight: 500,
-                  color: "var(--ink)",
-                }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <circle cx="9" cy="9" r="3.4" />
-                    <circle cx="17" cy="11" r="2.6" />
-                    <path d="M3.5 19c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5M14 18c.4-1.8 1.8-3 3.2-3s2.6.8 3.3 2" />
-                  </svg>
-                  <span>
-                    members &amp; invite
-                    {members.length > 0 ? ` · ${members.length}` : ""}
-                  </span>
-                </span>
-                <Chevron
-                  direction="down"
-                  size={14}
-                  strokeWidth={2}
-                  className="transition-transform group-open:rotate-180"
-                  style={{ color: "var(--mute)" }}
-                />
-              </summary>
-              <div
-                className="mt-3 p-4"
-                style={{
-                  background: "var(--card)",
-                  border: "1px solid var(--line)",
-                  borderRadius: "var(--radius)",
-                }}
-              >
-                <div className="label mb-2">members ({members.length})</div>
-                <ul
-                  className="overflow-hidden"
-                  style={{
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--line)",
-                  }}
-                >
-                  {members.map((m, i, arr) => (
-                    <li
-                      key={m.user_id}
-                      className="flex items-center gap-3 p-3"
-                      style={{
-                        borderBottom:
-                          i < arr.length - 1 ? "1px solid var(--line)" : "none",
-                      }}
-                    >
-                      <Avatar
-                        name={m.display_name}
-                        colorIndex={m.avatar_color_index}
-                        size={34}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div style={{ fontWeight: 500, fontSize: 15 }}>
-                          {m.display_name}
-                          {m.user_id === createdById && (
-                            <span
-                              className="ml-2"
-                              style={{
-                                fontFamily: "var(--font-stat-mono)",
-                                fontSize: 10,
-                                letterSpacing: "0.08em",
-                                textTransform: "uppercase",
-                                color: "var(--accent)",
-                              }}
-                            >
-                              creator
-                            </span>
-                          )}
-                        </div>
-                        <div className="label mt-0.5">
-                          joined {formatDate(m.joined_at)}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="label mt-5 mb-2">invite</div>
-                <p className="mb-2 text-xs" style={{ color: "var(--mute)" }}>
-                  anyone with this link can join the pact.
-                </p>
-                <InviteLink url={inviteUrl} code={inviteCode} />
-              </div>
-            </details>
 
             {challenge.frequency === "daily" && (
               <ReminderSection
