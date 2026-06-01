@@ -38,6 +38,7 @@ type Props = {
     end_date: string | null;
     metric_kind: string | null;
     metric_name: string | null;
+    default_metric_value: number | null;
     target_per_period: number;
   };
   isCreator: boolean;
@@ -293,6 +294,7 @@ export function EditPactDialog({
                   <MetricPicker
                     defaultKind={challenge.metric_kind}
                     defaultName={challenge.metric_name}
+                    defaultValue={challenge.default_metric_value}
                   />
                 </div>
               </details>

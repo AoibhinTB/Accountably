@@ -46,6 +46,7 @@ type Challenge = {
   days_of_week: number[] | null;
   metric_kind: string | null;
   metric_name: string | null;
+  default_metric_value: number | null;
   target_per_period: number;
 };
 
@@ -85,7 +86,7 @@ export default async function PactPage({
     supabase
       .from("groups")
       .select(
-        "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week, metric_kind, metric_name, target_per_period)",
+        "id, name, icon, invite_code, created_by, created_at, challenges(id, title, description, frequency, start_date, end_date, archived, created_at, days_of_week, metric_kind, metric_name, default_metric_value, target_per_period)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -324,6 +325,7 @@ export default async function PactPage({
                     end_date: challenge.end_date,
                     metric_kind: challenge.metric_kind,
                     metric_name: challenge.metric_name,
+                    default_metric_value: challenge.default_metric_value,
                     target_per_period: challengeTarget,
                   }}
                   isCreator={isCreator}

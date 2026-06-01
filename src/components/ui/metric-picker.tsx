@@ -20,16 +20,25 @@ const kindFor = (
 export function MetricPicker({
   defaultKind = null,
   defaultName = null,
+  defaultValue = null,
   kindFieldName = "metric_kind",
   nameFieldName = "metric_name",
+  defaultValueFieldName = "default_metric_value",
 }: {
   defaultKind?: string | null;
   defaultName?: string | null;
+  defaultValue?: number | null;
   kindFieldName?: string;
   nameFieldName?: string;
+  defaultValueFieldName?: string;
 }) {
   const [kind, setKind] = useState<Kind>(kindFor(defaultKind));
   const [countName, setCountName] = useState(defaultName ?? "");
+  const [defaultVal, setDefaultVal] = useState(
+    defaultValue !== null && defaultValue !== undefined
+      ? String(defaultValue)
+      : "",
+  );
 
   // Compute the hidden form values from current state. For count we send
   // the user-entered label; minutes always uses "minutes" so the server
@@ -37,12 +46,18 @@ export function MetricPicker({
   const submittedKind = kind === "none" ? "" : kind;
   const submittedName =
     kind === "count" ? countName : kind === "minutes" ? "minutes" : "";
+  const submittedDefault = kind === "none" ? "" : defaultVal;
 
   return (
     <fieldset style={{ minWidth: 0 }}>
       <legend className="label">metric (optional)</legend>
       <input type="hidden" name={kindFieldName} value={submittedKind} />
       <input type="hidden" name={nameFieldName} value={submittedName} />
+      <input
+        type="hidden"
+        name={defaultValueFieldName}
+        value={submittedDefault}
+      />
 
       <div className="mt-2 flex flex-col gap-2">
         <OptionCard
@@ -88,6 +103,40 @@ export function MetricPicker({
           subtitle="time spent on the habit"
         />
       </div>
+
+      {kind !== "none" && (
+        <label className="mt-3 block">
+          <span className="label">
+            default value <span style={{ opacity: 0.6 }}>(optional)</span>
+          </span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={defaultVal}
+            onChange={(e) => setDefaultVal(e.target.value)}
+            placeholder="0"
+            className="mt-1.5 w-full outline-none"
+            style={{
+              height: 44,
+              background: "var(--card-inset)",
+              border: "1.5px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "0 14px",
+              fontSize: 15,
+              color: "var(--ink)",
+              fontFamily: "var(--font-body)",
+            }}
+          />
+          <span
+            className="label mt-1.5 block"
+            style={{ fontSize: 10, color: "var(--mute)" }}
+          >
+            applied to every check-in unless you enter a different value
+          </span>
+        </label>
+      )}
     </fieldset>
   );
 }

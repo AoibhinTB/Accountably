@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ReactionBar } from "@/components/reactions/reaction-bar";
 import type { ReactionSummary } from "@/components/reactions/constants";
@@ -17,8 +17,6 @@ type Note = {
   metric_value: number | null;
   reactions: ReactionSummary[];
 };
-
-const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function formatMetric(
   value: number,
@@ -93,10 +91,45 @@ function NoteRow({
   );
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
+  const [showEditPill, setShowEditPill] = useState(false);
+  const rowRef = useRef<HTMLLIElement>(null);
+  const holdRef = useRef({ startTime: 0, fired: false, timerId: 0 });
 
   const isAuthor = note.user_id === currentUserId;
-  const ageMs = Date.now() - new Date(note.completed_at).getTime();
-  const editable = isAuthor && ageMs < EDIT_WINDOW_MS;
+  const editable = isAuthor;
+
+  // Hide the pill on any click outside this row.
+  useEffect(() => {
+    if (!showEditPill) return;
+    const onDocPointer = (e: PointerEvent) => {
+      if (!rowRef.current) return;
+      if (!rowRef.current.contains(e.target as Node)) {
+        setShowEditPill(false);
+      }
+    };
+    window.addEventListener("pointerdown", onDocPointer);
+    return () => window.removeEventListener("pointerdown", onDocPointer);
+  }, [showEditPill]);
+
+  // Long-press detection. We use a setTimeout so the threshold is easy to
+  // tune and we avoid running an animation loop for every note row.
+  const HOLD_MS = 450;
+  const onPointerDown = () => {
+    if (!editable) return;
+    holdRef.current.startTime = performance.now();
+    holdRef.current.fired = false;
+    holdRef.current.timerId = window.setTimeout(() => {
+      holdRef.current.fired = true;
+      setShowEditPill(true);
+    }, HOLD_MS);
+  };
+  const cancelHold = () => {
+    if (holdRef.current.timerId) {
+      window.clearTimeout(holdRef.current.timerId);
+      holdRef.current.timerId = 0;
+    }
+  };
+  const onPointerUpOrCancel = () => cancelHold();
 
   const onSave = () => {
     setError(null);
@@ -257,12 +290,21 @@ function NoteRow({
 
   return (
     <li
+      ref={rowRef}
       className="p-3 relative"
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--line)",
+        background: showEditPill ? "var(--accent-soft)" : "var(--card)",
+        border: `1px solid ${showEditPill ? "var(--accent)" : "var(--line)"}`,
         borderRadius: "var(--radius)",
+        transition: "background 120ms ease, border-color 120ms ease",
+        userSelect: showEditPill ? "none" : "auto",
+        WebkitUserSelect: showEditPill ? "none" : "auto",
+        WebkitTouchCallout: editable ? "none" : "default",
       }}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUpOrCancel}
+      onPointerLeave={onPointerUpOrCancel}
+      onPointerCancel={onPointerUpOrCancel}
     >
       <div className="flex items-center gap-3">
         <Avatar name={note.display_name} size={28} />
@@ -285,32 +327,41 @@ function NoteRow({
             )}
           </div>
         </div>
-        {editable && (
+        {editable && showEditPill && (
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowEditPill(false);
+              setEditing(true);
+            }}
             className="press"
             aria-label="Edit note"
             style={{
-              width: 30,
-              height: 30,
-              borderRadius: "50%",
-              background: "transparent",
-              border: "1px solid var(--line-strong)",
-              color: "var(--ink-soft)",
+              padding: "4px 12px",
+              borderRadius: 999,
+              background: "var(--accent)",
+              border: "none",
+              color: "#fff",
               display: "inline-flex",
               alignItems: "center",
-              justifyContent: "center",
+              gap: 4,
               flexShrink: 0,
+              fontFamily: "var(--font-stat-mono)",
+              fontSize: 10.5,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              fontWeight: 600,
             }}
           >
             <svg
-              width="13"
-              height="13"
+              width="11"
+              height="11"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.2"
               strokeLinecap="round"
               strokeLinejoin="round"
               aria-hidden
@@ -318,6 +369,7 @@ function NoteRow({
               <path d="M12 20h9" />
               <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
             </svg>
+            edit
           </button>
         )}
       </div>

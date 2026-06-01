@@ -44,17 +44,40 @@ const parseTarget = (raw: FormDataEntryValue | null): number => {
 const parseMetric = (
   kindRaw: FormDataEntryValue | null,
   nameRaw: FormDataEntryValue | null,
-): { metric_kind: "count" | "minutes" | null; metric_name: string | null } => {
+  defaultRaw: FormDataEntryValue | null,
+): {
+  metric_kind: "count" | "minutes" | null;
+  metric_name: string | null;
+  default_metric_value: number | null;
+} => {
   const kind = typeof kindRaw === "string" ? kindRaw.trim() : "";
   if (kind !== "count" && kind !== "minutes") {
-    return { metric_kind: null, metric_name: null };
+    return {
+      metric_kind: null,
+      metric_name: null,
+      default_metric_value: null,
+    };
   }
   const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+  const defStr = typeof defaultRaw === "string" ? defaultRaw.trim() : "";
+  const defParsed = defStr === "" ? null : parseInt(defStr, 10);
+  const defaultValue =
+    defParsed !== null && Number.isFinite(defParsed) && defParsed >= 0
+      ? defParsed
+      : null;
   if (kind === "count") {
     const safeName = name.slice(0, 30) || "units";
-    return { metric_kind: "count", metric_name: safeName };
+    return {
+      metric_kind: "count",
+      metric_name: safeName,
+      default_metric_value: defaultValue,
+    };
   }
-  return { metric_kind: "minutes", metric_name: "minutes" };
+  return {
+    metric_kind: "minutes",
+    metric_name: "minutes",
+    default_metric_value: defaultValue,
+  };
 };
 
 export async function createPact(formData: FormData) {
@@ -86,6 +109,7 @@ export async function createPact(formData: FormData) {
   const metric = parseMetric(
     formData.get("metric_kind"),
     formData.get("metric_name"),
+    formData.get("default_metric_value"),
   );
   const targetPerPeriod = parseTarget(formData.get("target_per_period"));
 
@@ -113,6 +137,7 @@ export async function createPact(formData: FormData) {
     .update({
       metric_kind: metric.metric_kind,
       metric_name: metric.metric_name,
+      default_metric_value: metric.default_metric_value,
       target_per_period: targetPerPeriod,
     })
     .eq("group_id", data)
@@ -161,6 +186,7 @@ export async function updatePact(formData: FormData) {
   const metric = parseMetric(
     formData.get("metric_kind"),
     formData.get("metric_name"),
+    formData.get("default_metric_value"),
   );
   const targetPerPeriod = parseTarget(formData.get("target_per_period"));
 
@@ -189,6 +215,7 @@ export async function updatePact(formData: FormData) {
       days_of_week: daysOfWeek,
       metric_kind: metric.metric_kind,
       metric_name: metric.metric_name,
+      default_metric_value: metric.default_metric_value,
       target_per_period: targetPerPeriod,
     })
     .eq("group_id", pactId)
@@ -329,7 +356,7 @@ export async function toggleQuickLog(
 
   const { data: challenge, error: chErr } = await supabase
     .from("challenges")
-    .select("id, frequency, target_per_period")
+    .select("id, frequency, target_per_period, default_metric_value")
     .eq("group_id", pactId)
     .eq("archived", false)
     .maybeSingle();
@@ -342,6 +369,10 @@ export async function toggleQuickLog(
   }
 
   const target = Math.max(1, challenge.target_per_period ?? 1);
+  const defaultMetric: number | null =
+    typeof challenge.default_metric_value === "number"
+      ? challenge.default_metric_value
+      : null;
   const periodStart = startOfPeriodUTC(challenge.frequency);
 
   // Look at my completions this period so we can cycle correctly. For a
@@ -370,9 +401,13 @@ export async function toggleQuickLog(
     return { ok: true, done: false };
   }
 
+  const insertPayload: { challenge_id: string; metric_value?: number } = {
+    challenge_id: challenge.id,
+  };
+  if (defaultMetric !== null) insertPayload.metric_value = defaultMetric;
   const { data: inserted, error: insErr } = await supabase
     .from("completions")
-    .insert({ challenge_id: challenge.id })
+    .insert(insertPayload)
     .select("id")
     .single();
   if (insErr || !inserted) {
@@ -492,7 +527,9 @@ export async function togglePeriodCompletion(
 
   const { data: challenge, error: chErr } = await supabase
     .from("challenges")
-    .select("id, group_id, frequency, start_date, target_per_period")
+    .select(
+      "id, group_id, frequency, start_date, target_per_period, default_metric_value",
+    )
     .eq("group_id", pactId)
     .eq("archived", false)
     .maybeSingle();
@@ -543,12 +580,22 @@ export async function togglePeriodCompletion(
     return { ok: true, done: false };
   }
 
+  const defaultMetric: number | null =
+    typeof challenge.default_metric_value === "number"
+      ? challenge.default_metric_value
+      : null;
+  const insertPayload: {
+    challenge_id: string;
+    completed_at: string;
+    metric_value?: number;
+  } = {
+    challenge_id: challenge.id,
+    completed_at: target.toISOString(),
+  };
+  if (defaultMetric !== null) insertPayload.metric_value = defaultMetric;
   const { data: inserted, error } = await supabase
     .from("completions")
-    .insert({
-      challenge_id: challenge.id,
-      completed_at: target.toISOString(),
-    })
+    .insert(insertPayload)
     .select("id")
     .single();
 
@@ -573,15 +620,8 @@ export async function backdateCompletion(
   return { ok: true };
 }
 
-// Edit window for notes: 24 hours after completed_at. The server enforces
-// this so direct API calls cannot bypass the limit; the client also hides
-// the edit affordance after the window so users do not see a button that
-// returns an error.
-const NOTE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-// Hard-delete a completion the caller authored, within the same 24h
-// window used for note edits. RLS limits the delete to own rows; the
-// explicit fetch lets us return a friendlier error if the row is too old.
+// Hard-delete a completion the caller authored. RLS limits the delete to
+// own rows; the explicit fetch is just for a friendly error message.
 export async function deleteCompletion(
   completionId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -595,19 +635,12 @@ export async function deleteCompletion(
 
   const { data: existing } = await supabase
     .from("completions")
-    .select("completed_at, user_id, challenge_id")
+    .select("user_id")
     .eq("id", completionId)
     .maybeSingle();
   if (!existing) return { ok: false, error: "Not authorized" };
   if (existing.user_id !== user.id) {
     return { ok: false, error: "Not authorized" };
-  }
-  const ageMs = Date.now() - new Date(existing.completed_at).getTime();
-  if (ageMs > NOTE_EDIT_WINDOW_MS) {
-    return {
-      ok: false,
-      error: "check-ins can only be deleted within 24 hours",
-    };
   }
 
   const { error } = await supabase
@@ -636,23 +669,6 @@ export async function saveNoteInline(
   if (!completionId) return { ok: false, error: "Missing completion" };
 
   const supabase = await createClient();
-
-  // Verify the completion exists and is still within the edit window. RLS
-  // already scopes by ownership (only the author can update), so a missing
-  // row here means either not-found or not-authorized.
-  const { data: existing } = await supabase
-    .from("completions")
-    .select("completed_at")
-    .eq("id", completionId)
-    .maybeSingle();
-  if (!existing) return { ok: false, error: "Not authorized" };
-  const ageMs = Date.now() - new Date(existing.completed_at).getTime();
-  if (ageMs > NOTE_EDIT_WINDOW_MS) {
-    return {
-      ok: false,
-      error: "notes can only be edited within 24 hours of check-in",
-    };
-  }
 
   const update: Record<string, string | number | null> = {};
   if (visibility === "private") {
