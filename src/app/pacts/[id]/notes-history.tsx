@@ -311,10 +311,9 @@ function NoteRow({
       ref={rowRef}
       className="p-3 relative"
       style={{
-        background: showEditPill ? "var(--accent-soft)" : "var(--card)",
-        border: `1px solid ${showEditPill ? "var(--accent)" : "var(--line)"}`,
+        background: "var(--card)",
+        border: "1px solid var(--line)",
         borderRadius: "var(--radius)",
-        transition: "background 120ms ease, border-color 120ms ease",
         userSelect: showEditPill ? "none" : "auto",
         WebkitUserSelect: showEditPill ? "none" : "auto",
         WebkitTouchCallout: editable ? "none" : "default",
