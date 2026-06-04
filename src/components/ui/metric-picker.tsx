@@ -161,7 +161,7 @@ function OptionCard({
       style={{
         padding: "14px 16px",
         borderRadius: "var(--radius)",
-        background: selected ? "var(--accent-soft)" : "var(--card)",
+        background: selected ? "var(--accent-soft)" : "var(--card-inset)",
         border: selected
           ? "1.5px solid var(--accent)"
           : "1px solid var(--line)",

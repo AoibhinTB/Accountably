@@ -33,7 +33,7 @@ export function TargetPicker({
         <div
           className="flex-1 text-center"
           style={{
-            background: "var(--card)",
+            background: "var(--card-inset)",
             border: "1.5px solid var(--line)",
             borderRadius: "var(--radius)",
             padding: "10px 0",

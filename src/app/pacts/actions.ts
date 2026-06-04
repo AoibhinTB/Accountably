@@ -258,6 +258,61 @@ export async function deletePact(formData: FormData) {
   redirect("/pacts");
 }
 
+export async function setPactArchived(formData: FormData) {
+  const supabase = await createClient();
+
+  const pactId = String(formData.get("pact_id") ?? "").trim();
+  const archive = String(formData.get("archive") ?? "true") === "true";
+  if (!pactId) {
+    redirect("/pacts?error=Missing+pact");
+  }
+
+  // Only the creator can archive; rely on RLS to enforce it. We just match
+  // on the active (or most-recent) challenge for this pact and flip the flag.
+  const { data: pact } = await supabase
+    .from("groups")
+    .select("id, created_by, challenges(id, archived, created_at)")
+    .eq("id", pactId)
+    .maybeSingle<{
+      id: string;
+      created_by: string;
+      challenges: { id: string; archived: boolean; created_at: string }[];
+    }>();
+  if (!pact) {
+    redirect(`/pacts/${pactId}?error=Pact+not+found`);
+  }
+
+  const target =
+    [...(pact.challenges ?? [])]
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .find((c) => (archive ? !c.archived : c.archived)) ??
+    [...(pact.challenges ?? [])].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    )[0];
+
+  if (!target) {
+    redirect(`/pacts/${pactId}?error=No+challenge+to+update`);
+  }
+
+  const { error } = await supabase
+    .from("challenges")
+    .update({ archived: archive })
+    .eq("id", target.id);
+
+  if (error) {
+    redirect(`/pacts/${pactId}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/pacts");
+  revalidatePath(`/pacts/${pactId}`);
+  revalidatePath("/feed");
+  redirect(archive ? "/pacts" : `/pacts/${pactId}`);
+}
+
 export async function joinPactByCode(formData: FormData) {
   const supabase = await createClient();
 

@@ -105,11 +105,17 @@ export default async function NewPactPage({
           />
         </label>
 
-        <HowOftenPicker />
+        <div style={panelStyle}>
+          <HowOftenPicker />
+        </div>
 
-        <TargetPicker />
+        <div style={panelStyle}>
+          <TargetPicker />
+        </div>
 
-        <MetricPicker />
+        <div style={panelStyle}>
+          <MetricPicker />
+        </div>
 
         <details className="group">
           <summary
@@ -175,6 +181,13 @@ const inputStyle: React.CSSProperties = {
   fontSize: 16,
   color: "var(--ink)",
   fontFamily: "var(--font-body)",
+};
+
+const panelStyle: React.CSSProperties = {
+  background: "var(--card)",
+  border: "1px solid var(--line)",
+  borderRadius: "var(--radius)",
+  padding: "16px 18px",
 };
 
 const dateInputStyle: React.CSSProperties = {

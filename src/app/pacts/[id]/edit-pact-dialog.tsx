@@ -8,7 +8,7 @@ import { IconPicker } from "@/components/ui/icon-picker";
 import { MetricPicker } from "@/components/ui/metric-picker";
 import { TargetPicker } from "@/components/ui/target-picker";
 import { SubmitButton } from "@/components/submit-button";
-import { deletePact, updatePact } from "../actions";
+import { deletePact, setPactArchived, updatePact } from "../actions";
 import { updatePactReminder } from "@/app/you/notifications-actions";
 
 // Other components on the pact-detail page (the hero-icon button) dispatch
@@ -241,12 +241,13 @@ export function EditPactDialog({
                     style={{ color: "var(--mute)" }}
                   />
                 </summary>
-                <div className="mt-3">
+                <div className="mt-3 p-4" style={editPanelStyle}>
                   <HowOftenPicker
                     defaultFrequency={challenge.frequency}
                     defaultDays={
                       challenge.days_of_week ?? [0, 1, 2, 3, 4, 5, 6]
                     }
+                    defaultTarget={challenge.target_per_period}
                   />
                 </div>
               </details>
@@ -272,7 +273,7 @@ export function EditPactDialog({
                     style={{ color: "var(--mute)" }}
                   />
                 </summary>
-                <div className="mt-3">
+                <div className="mt-3 p-4" style={editPanelStyle}>
                   <MetricPicker
                     defaultKind={challenge.metric_kind}
                     defaultName={challenge.metric_name}
@@ -302,7 +303,7 @@ export function EditPactDialog({
                     style={{ color: "var(--mute)" }}
                   />
                 </summary>
-                <div className="mt-3">
+                <div className="mt-3 p-4" style={editPanelStyle}>
                   <TargetPicker defaultValue={challenge.target_per_period} />
                 </div>
               </details>
@@ -364,32 +365,57 @@ export function EditPactDialog({
             )}
 
             {isCreator && (
-              <div
-                className="mt-5 p-3"
-                style={{
-                  borderRadius: "var(--radius)",
-                  border: "1px solid rgba(156, 31, 31, 0.25)",
-                  background: "rgba(216, 98, 58, 0.06)",
-                }}
-              >
-                <p
-                  className="mb-3 text-xs"
-                  style={{ color: "#7A1F1F", lineHeight: 1.4 }}
+              <>
+                <form
+                  action={setPactArchived}
+                  className="mt-5 p-3"
+                  style={{
+                    borderRadius: "var(--radius)",
+                    border: "1px solid var(--line)",
+                    background: "var(--card)",
+                  }}
                 >
-                  deleting this pact permanently removes all completions and
-                  reactions. this can&apos;t be undone. only the creator can
-                  delete.
-                </p>
-                <ConfirmForm
-                  action={deletePact}
-                  message={`Delete "${pactName}"? All completions and reactions in this pact will be permanently deleted. This cannot be undone.`}
-                >
+                  <p
+                    className="mb-3 text-xs"
+                    style={{ color: "var(--ink-soft)", lineHeight: 1.4 }}
+                  >
+                    archiving moves this pact out of your active list. progress
+                    and notes stay intact and you can unarchive it later.
+                  </p>
                   <input type="hidden" name="pact_id" value={pactId} />
-                  <SubmitButton pendingLabel="deleting…" style={dangerStyle}>
-                    delete pact
+                  <input type="hidden" name="archive" value="true" />
+                  <SubmitButton pendingLabel="archiving…" style={ghostStyle}>
+                    archive pact
                   </SubmitButton>
-                </ConfirmForm>
-              </div>
+                </form>
+
+                <div
+                  className="mt-3 p-3"
+                  style={{
+                    borderRadius: "var(--radius)",
+                    border: "1px solid rgba(156, 31, 31, 0.25)",
+                    background: "rgba(216, 98, 58, 0.06)",
+                  }}
+                >
+                  <p
+                    className="mb-3 text-xs"
+                    style={{ color: "#7A1F1F", lineHeight: 1.4 }}
+                  >
+                    deleting this pact permanently removes all completions and
+                    reactions. this can&apos;t be undone. only the creator can
+                    delete.
+                  </p>
+                  <ConfirmForm
+                    action={deletePact}
+                    message={`Delete "${pactName}"? All completions and reactions in this pact will be permanently deleted. This cannot be undone.`}
+                  >
+                    <input type="hidden" name="pact_id" value={pactId} />
+                    <SubmitButton pendingLabel="deleting…" style={dangerStyle}>
+                      delete pact
+                    </SubmitButton>
+                  </ConfirmForm>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -535,6 +561,12 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "var(--font-body)",
 };
 
+const editPanelStyle: React.CSSProperties = {
+  background: "var(--card)",
+  border: "1px solid var(--line)",
+  borderRadius: "var(--radius)",
+};
+
 const dateInputStyle: React.CSSProperties = {
   height: 44,
   background: "var(--card-inset)",
@@ -557,6 +589,18 @@ const primaryStyle: React.CSSProperties = {
   fontWeight: 600,
   fontSize: 16,
   padding: "0 22px",
+};
+
+const ghostStyle: React.CSSProperties = {
+  minHeight: 44,
+  background: "transparent",
+  color: "var(--ink)",
+  borderRadius: "var(--radius)",
+  border: "1.5px solid var(--line-strong)",
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
+  fontSize: 14,
+  padding: "0 18px",
 };
 
 const dangerStyle: React.CSSProperties = {

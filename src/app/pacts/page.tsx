@@ -82,16 +82,27 @@ export default async function PactsPage({
     membersByGroup.set(m.group_id, list);
   }
 
-  const pacts = (memberships ?? [])
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const allPacts = (memberships ?? [])
     .flatMap((m) => (m.groups ? [m.groups] : []))
-    .map((g) => ({
-      id: g.id,
-      name: g.name,
-      icon: g.icon,
-      created_at: g.created_at,
-      active: g.challenges?.find((c) => !c.archived) ?? null,
-      members: membersByGroup.get(g.id) ?? [],
-    }));
+    .map((g) => {
+      const active = g.challenges?.find((c) => !c.archived) ?? null;
+      // A pact whose challenge ended in the past is treated as archived
+      // even if the flag hasn't been flipped — keeps the active list focused.
+      const finishedByDate =
+        active && active.end_date ? active.end_date < todayKey : false;
+      return {
+        id: g.id,
+        name: g.name,
+        icon: g.icon,
+        created_at: g.created_at,
+        active,
+        finishedByDate,
+        members: membersByGroup.get(g.id) ?? [],
+      };
+    });
+  const pacts = allPacts.filter((p) => p.active && !p.finishedByDate);
+  const archivedPacts = allPacts.filter((p) => !p.active || p.finishedByDate);
 
   // Per-pact personal streak for the chip on each card. 400-day lookback
   // comfortably covers any plausible run.
@@ -128,7 +139,7 @@ export default async function PactsPage({
     );
   }
 
-  const isEmpty = pacts.length === 0;
+  const isEmpty = pacts.length === 0 && archivedPacts.length === 0;
 
   return (
     <main className="mx-auto w-full max-w-2xl px-5 pt-10 pb-28">
@@ -155,7 +166,7 @@ export default async function PactsPage({
         </div>
       )}
 
-      {!isEmpty && (
+      {pacts.length > 0 && (
         <section className="mt-6 flex flex-col gap-3.5">
           {pacts.map((p, i) => (
             <Link
@@ -272,6 +283,115 @@ export default async function PactsPage({
             invite code.
           </p>
         </div>
+      )}
+
+      {archivedPacts.length > 0 && (
+        <section className="mt-6">
+          <details className="group">
+            <summary
+              className="press flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "0 18px",
+                color: "var(--ink-soft)",
+              }}
+            >
+              <span
+                className="inline-flex items-center gap-2"
+                style={{
+                  fontFamily: "var(--font-stat-mono)",
+                  fontSize: 11.5,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                  <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" />
+                  <path d="M10 12h4" />
+                </svg>
+                <span>archived pacts · {archivedPacts.length}</span>
+              </span>
+              <Chevron
+                direction="down"
+                size={14}
+                strokeWidth={2}
+                className="transition-transform group-open:rotate-180"
+                style={{ color: "var(--mute)" }}
+              />
+            </summary>
+            <ul className="mt-3 flex flex-col gap-2.5">
+              {archivedPacts.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    href={`/pacts/${p.id}`}
+                    className="press flex items-center gap-3"
+                    style={{
+                      background: "var(--card)",
+                      border: "1px solid var(--line)",
+                      borderRadius: "var(--radius)",
+                      padding: "12px 14px",
+                      opacity: 0.85,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        background: "var(--card-inset)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontFamily: p.icon ? "inherit" : "var(--font-display)",
+                        fontSize: p.icon ? 22 : 20,
+                        color: "var(--ink-soft)",
+                        flexShrink: 0,
+                      }}
+                      aria-hidden
+                    >
+                      {p.icon ?? stickerForName(p.name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div
+                        style={{
+                          fontFamily: "var(--font-display)",
+                          fontSize: 18,
+                          lineHeight: 1.1,
+                          color: "var(--ink)",
+                        }}
+                      >
+                        {p.name}
+                      </div>
+                      <div className="label mt-0.5">
+                        {p.finishedByDate ? "ended" : "archived"}
+                      </div>
+                    </div>
+                    <Chevron
+                      direction="right"
+                      size={14}
+                      strokeWidth={1.8}
+                      style={{ color: "var(--mute)", flexShrink: 0 }}
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </section>
       )}
 
       <section className="mt-5 flex flex-col gap-3">

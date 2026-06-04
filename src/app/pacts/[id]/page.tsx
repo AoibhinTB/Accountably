@@ -20,7 +20,7 @@ import { NotesHistory } from "./notes-history";
 import { NudgeButton } from "./nudge-button";
 import { PactCircle } from "./pact-circle";
 import { InviteLink } from "./invite-link";
-import { saveCompletionNote } from "../actions";
+import { saveCompletionNote, setPactArchived } from "../actions";
 import { summarizeReactions } from "@/components/reactions/constants";
 
 type Member = {
@@ -59,8 +59,12 @@ const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const cadenceLabel = (
   frequency: "daily" | "weekly",
   daysOfWeek: number[] | null,
+  targetPerPeriod: number,
 ): string => {
-  if (frequency === "weekly") return "once a week";
+  if (frequency === "weekly") {
+    if (targetPerPeriod > 1) return `${targetPerPeriod}× a week`;
+    return "once a week";
+  }
   if (!daysOfWeek || daysOfWeek.length === 0) return "every day";
   const sorted = [...daysOfWeek].sort((a, b) => a - b);
   if (sorted.length === 7) return "every day";
@@ -100,6 +104,8 @@ export default async function PactPage({
 
   const challenge: Challenge | null =
     (pact.challenges as Challenge[] | null)?.find((c) => !c.archived) ?? null;
+  const hasArchivedChallenge =
+    (pact.challenges as Challenge[] | null)?.some((c) => c.archived) ?? false;
 
   const isCreator = userData.user?.id === pact.created_by;
 
@@ -369,7 +375,11 @@ export default async function PactPage({
           </h1>
           {challenge && (
             <div className="label mt-1">
-              {cadenceLabel(challenge.frequency, challenge.days_of_week)}
+              {cadenceLabel(
+                challenge.frequency,
+                challenge.days_of_week,
+                challengeTarget,
+              )}
               {challenge.end_date && ` · until ${formatDate(challenge.end_date)}`}
             </div>
           )}
@@ -419,6 +429,50 @@ export default async function PactPage({
         >
           {error}
         </div>
+      )}
+
+      {!challenge && hasArchivedChallenge && (
+        <section className="px-5 pt-6">
+          <div
+            className="p-4"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            <div className="label">archived</div>
+            <p
+              className="mt-1.5 text-sm"
+              style={{ color: "var(--ink-soft)", lineHeight: 1.4 }}
+            >
+              this pact is in your archived list. all history is preserved.
+              {isCreator && " unarchive to start checking in again."}
+            </p>
+            {isCreator && (
+              <form action={setPactArchived} className="mt-3">
+                <input type="hidden" name="pact_id" value={pact.id} />
+                <input type="hidden" name="archive" value="false" />
+                <SubmitButton
+                  pendingLabel="unarchiving…"
+                  style={{
+                    minHeight: 40,
+                    background: "var(--accent)",
+                    color: "#fff",
+                    borderRadius: "var(--radius)",
+                    border: "none",
+                    fontFamily: "var(--font-body)",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    padding: "0 18px",
+                  }}
+                >
+                  unarchive pact
+                </SubmitButton>
+              </form>
+            )}
+          </div>
+        </section>
       )}
 
       {challenge && (
