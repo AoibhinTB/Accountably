@@ -47,6 +47,8 @@ export function EditPactDialog({
   reminder,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [showArchiveInfo, setShowArchiveInfo] = useState(false);
+  const [showDeleteInfo, setShowDeleteInfo] = useState(false);
 
   // Listen for the "open-edit-pact" event so any trigger on the page (icon,
   // explicit button) can open the dialog without prop-drilling state.
@@ -375,18 +377,28 @@ export function EditPactDialog({
                     background: "var(--card)",
                   }}
                 >
-                  <p
-                    className="mb-3 text-xs"
-                    style={{ color: "var(--ink-soft)", lineHeight: 1.4 }}
-                  >
-                    archiving moves this pact out of your active list. progress
-                    and notes stay intact and you can unarchive it later.
-                  </p>
                   <input type="hidden" name="pact_id" value={pactId} />
                   <input type="hidden" name="archive" value="true" />
-                  <SubmitButton pendingLabel="archiving…" style={ghostStyle}>
-                    archive pact
-                  </SubmitButton>
+                  <div className="flex items-center gap-2">
+                    <SubmitButton pendingLabel="archiving…" style={ghostStyle}>
+                      archive pact
+                    </SubmitButton>
+                    <InfoToggle
+                      open={showArchiveInfo}
+                      onToggle={() => setShowArchiveInfo((v) => !v)}
+                      tone="neutral"
+                    />
+                  </div>
+                  {showArchiveInfo && (
+                    <p
+                      className="mt-3 text-xs"
+                      style={{ color: "var(--ink-soft)", lineHeight: 1.4 }}
+                    >
+                      archiving moves this pact out of your active list.
+                      progress and notes stay intact and you can unarchive it
+                      later.
+                    </p>
+                  )}
                 </form>
 
                 <div
@@ -397,23 +409,32 @@ export function EditPactDialog({
                     background: "rgba(216, 98, 58, 0.06)",
                   }}
                 >
-                  <p
-                    className="mb-3 text-xs"
-                    style={{ color: "#7A1F1F", lineHeight: 1.4 }}
-                  >
-                    deleting this pact permanently removes all completions and
-                    reactions. this can&apos;t be undone. only the creator can
-                    delete.
-                  </p>
                   <ConfirmForm
                     action={deletePact}
                     message={`Delete "${pactName}"? All completions and reactions in this pact will be permanently deleted. This cannot be undone.`}
                   >
                     <input type="hidden" name="pact_id" value={pactId} />
-                    <SubmitButton pendingLabel="deleting…" style={dangerStyle}>
-                      delete pact
-                    </SubmitButton>
+                    <div className="flex items-center gap-2">
+                      <SubmitButton pendingLabel="deleting…" style={dangerStyle}>
+                        delete pact
+                      </SubmitButton>
+                      <InfoToggle
+                        open={showDeleteInfo}
+                        onToggle={() => setShowDeleteInfo((v) => !v)}
+                        tone="danger"
+                      />
+                    </div>
                   </ConfirmForm>
+                  {showDeleteInfo && (
+                    <p
+                      className="mt-3 text-xs"
+                      style={{ color: "#7A1F1F", lineHeight: 1.4 }}
+                    >
+                      deleting this pact permanently removes all completions
+                      and reactions. this can&apos;t be undone. only the
+                      creator can delete.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -421,6 +442,49 @@ export function EditPactDialog({
         </div>
       )}
     </>
+  );
+}
+
+function InfoToggle({
+  open,
+  onToggle,
+  tone,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  tone: "neutral" | "danger";
+}) {
+  const isDanger = tone === "danger";
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={open ? "Hide info" : "Show info"}
+      aria-expanded={open}
+      className="press"
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: "50%",
+        background: open
+          ? isDanger
+            ? "rgba(216, 98, 58, 0.18)"
+            : "var(--card-inset)"
+          : "transparent",
+        border: `1px solid ${
+          isDanger ? "rgba(156, 31, 31, 0.35)" : "var(--line-strong)"
+        }`,
+        color: isDanger ? "#7A1F1F" : "var(--ink-soft)",
+        fontFamily: "var(--font-display)",
+        fontStyle: "italic",
+        fontSize: 14,
+        fontWeight: 600,
+        lineHeight: 1,
+        flexShrink: 0,
+      }}
+    >
+      i
+    </button>
   );
 }
 
