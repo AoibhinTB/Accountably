@@ -664,6 +664,99 @@ export async function togglePeriodCompletion(
   return { ok: true, done: true, completionId: inserted.id };
 }
 
+// Single-day toggle. Used by the grid for weekly-flex pacts (frequency = weekly
+// with target > 1) where each daily column represents an individual log day
+// rather than the whole week. Tapping a day with no completion inserts one;
+// tapping a day that already has at least one removes the most recent (so the
+// user can drop a mis-tap without nuking the whole week's progress).
+export async function toggleDayCompletion(
+  pactId: string,
+  dateISO: string,
+): Promise<
+  | { ok: true; done: true; completionId: string }
+  | { ok: true; done: false }
+  | { ok: false; error: string }
+> {
+  if (!pactId || !dateISO) return { ok: false, error: "Missing args" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
+    return { ok: false, error: "Invalid date" };
+  }
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not authenticated" };
+
+  const { data: challenge, error: chErr } = await supabase
+    .from("challenges")
+    .select("id, group_id, frequency, start_date, default_metric_value")
+    .eq("group_id", pactId)
+    .eq("archived", false)
+    .maybeSingle();
+
+  if (chErr) return { ok: false, error: chErr.message };
+  if (!challenge) return { ok: false, error: "No active challenge" };
+
+  const target = new Date(`${dateISO}T12:00:00Z`);
+  const today = new Date();
+  today.setUTCHours(23, 59, 59, 999);
+  const startDay = new Date(`${challenge.start_date}T00:00:00Z`);
+  if (target > today) return { ok: false, error: "Can't log a future day" };
+  if (target < startDay) return { ok: false, error: "Before the pact started" };
+
+  const dayStart = new Date(`${dateISO}T00:00:00Z`);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+  const { data: mine } = await supabase
+    .from("completions")
+    .select("id")
+    .eq("challenge_id", challenge.id)
+    .eq("user_id", user.id)
+    .gte("completed_at", dayStart.toISOString())
+    .lt("completed_at", dayEnd.toISOString())
+    .order("completed_at", { ascending: false });
+
+  if ((mine ?? []).length > 0) {
+    const { error: delErr } = await supabase
+      .from("completions")
+      .delete()
+      .eq("id", mine![0].id);
+    if (delErr) return { ok: false, error: delErr.message };
+    revalidatePath(`/pacts/${pactId}`);
+    revalidatePath("/feed");
+    return { ok: true, done: false };
+  }
+
+  const defaultMetric: number | null =
+    typeof challenge.default_metric_value === "number"
+      ? challenge.default_metric_value
+      : null;
+  const insertPayload: {
+    challenge_id: string;
+    completed_at: string;
+    metric_value?: number;
+  } = {
+    challenge_id: challenge.id,
+    completed_at: target.toISOString(),
+  };
+  if (defaultMetric !== null) insertPayload.metric_value = defaultMetric;
+  const { data: inserted, error } = await supabase
+    .from("completions")
+    .insert(insertPayload)
+    .select("id")
+    .single();
+  if (error || !inserted) {
+    return { ok: false, error: error?.message ?? "Insert failed" };
+  }
+
+  revalidatePath(`/pacts/${pactId}`);
+  revalidatePath("/feed");
+  after(() => notifyCompletion({ actorUserId: user.id, pactId }));
+  return { ok: true, done: true, completionId: inserted.id };
+}
+
 // Insert-only backdate (kept for any callers that explicitly want add-only).
 // Grid uses togglePeriodCompletion instead so taps can also un-tick.
 export async function backdateCompletion(

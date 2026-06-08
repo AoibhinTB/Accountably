@@ -8,7 +8,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { togglePeriodCompletion } from "../actions";
+import { toggleDayCompletion, togglePeriodCompletion } from "../actions";
 import { Avatar } from "@/components/ui/avatar";
 import { NoteSheet, type NoteSheetPrompt } from "@/components/note-sheet";
 
@@ -128,28 +128,53 @@ export function CheckInGrid({
 }) {
   const now = new Date();
   const startDate = new Date(`${challenge.start_date}T00:00:00Z`);
-  const minCount =
-    challenge.frequency === "daily" ? MIN_DAILY_COLS : MIN_WEEKLY_COLS;
-  const columns = generateColumns(startDate, now, challenge.frequency, minCount);
-  const todayKey = periodKeyOf(now, challenge.frequency);
-  const stepMs = (challenge.frequency === "daily" ? 1 : 7) * DAY_MS;
-
   const target = Math.max(1, challenge.target_per_period ?? 1);
+  // Weekly-flex pacts (e.g. 3× a week, any day) render daily columns so the
+  // user can see individual log days instead of a single weekly cell. The
+  // perfect-week tint still spans the whole week so the visual rhythm reads
+  // like a daily grid.
+  const isWeeklyFlex = challenge.frequency === "weekly" && target > 1;
+  const colFrequency: Frequency =
+    challenge.frequency === "weekly" && !isWeeklyFlex ? "weekly" : "daily";
+  const minCount =
+    colFrequency === "daily" ? MIN_DAILY_COLS : MIN_WEEKLY_COLS;
+  const columns = generateColumns(startDate, now, colFrequency, minCount);
+  const todayKey = periodKeyOf(now, colFrequency);
+  const stepMs = (colFrequency === "daily" ? 1 : 7) * DAY_MS;
 
-  // Bucket completions by (period_key, user_id) → count of completions in
-  // that period. Drives both "is this cell at-target" and the partial fill
-  // amount for multi-target pacts.
+  // Bucket completions by (column_key, user_id) — for daily and weekly-flex
+  // grids the column key is the specific day; for plain weekly grids it's the
+  // week-start. This drives "is this cell at-target" for daily/weekly and the
+  // 0-or-1 per-day fill for weekly-flex.
   const countByPeriodUser = new Map<string, Map<string, number>>();
   for (const c of completions) {
-    const key = periodKeyOf(new Date(c.completed_at), challenge.frequency);
+    const key = periodKeyOf(new Date(c.completed_at), colFrequency);
     const inner = countByPeriodUser.get(key) ?? new Map<string, number>();
     inner.set(c.user_id, (inner.get(c.user_id) ?? 0) + 1);
     countByPeriodUser.set(key, inner);
   }
   const serverCountFor = (key: string, userId: string): number =>
     countByPeriodUser.get(key)?.get(userId) ?? 0;
+  // For weekly-flex the per-day cell is binary (done if any check that day),
+  // so "isDoneServer" only compares against 1. The weekly target is tracked
+  // separately for perfect-week detection.
+  const cellTarget = isWeeklyFlex ? 1 : target;
   const isDoneServer = (key: string, userId: string): boolean =>
-    serverCountFor(key, userId) >= target;
+    serverCountFor(key, userId) >= cellTarget;
+
+  // For weekly-flex: separately bucket completions per week, so we can decide
+  // whether a week is "perfect" (every expected member hit weekly target).
+  const weeklyCountByUser = new Map<string, Map<string, number>>();
+  if (isWeeklyFlex) {
+    for (const c of completions) {
+      const wKey = periodKeyOf(new Date(c.completed_at), "weekly");
+      const inner = weeklyCountByUser.get(wKey) ?? new Map<string, number>();
+      inner.set(c.user_id, (inner.get(c.user_id) ?? 0) + 1);
+      weeklyCountByUser.set(wKey, inner);
+    }
+  }
+  const weekKeyOfCol = (colKey: string): string =>
+    periodKeyOf(new Date(`${colKey}T00:00:00Z`), "weekly");
 
   const dayIdxOfKey = (key: string) => {
     const d = new Date(`${key}T00:00:00Z`);
@@ -183,23 +208,39 @@ export function CheckInGrid({
     joinedAt: new Date(m.joined_at).getTime(),
   }));
 
-  // Helper: count for the current user including optimistic state. The cycle
-  // is the same as the server: at target → wraps to 0 on tap; otherwise +1.
-  // Only one optimistic tick is tracked here (toggled vs not); subsequent
-  // taps resolve when the server response comes back.
+  // Helper: count for the current user including optimistic state.
+  // - daily / weekly: at target → wraps to 0 on tap; otherwise +1 (cycle)
+  // - weekly-flex daily cell: pure toggle 0 ↔ 1 for that day
   const myCountOptimistic = (key: string): number => {
     if (!currentUserId) return 0;
     const serverCount = serverCountFor(key, currentUserId);
     if (!toggled.has(key)) return serverCount;
+    if (isWeeklyFlex) return serverCount > 0 ? 0 : 1;
     return serverCount >= target ? 0 : serverCount + 1;
   };
   const isMyDone = (key: string): boolean =>
-    myCountOptimistic(key) >= target;
+    myCountOptimistic(key) >= cellTarget;
 
   const perfectColumns = new Set<string>();
   for (const col of columns) {
     if (col.isPrePact) continue;
     if (!isRequired(col.key)) continue;
+    if (isWeeklyFlex) {
+      // For weekly-flex: a day cell counts as perfect when its WEEK is perfect
+      // (every expected member hit weekly target). The whole perfect week
+      // therefore shows the lavender tint across all 7 of its day columns.
+      const wKey = weekKeyOfCol(col.key);
+      const weekEndMs =
+        new Date(`${wKey}T00:00:00Z`).getTime() + 7 * DAY_MS;
+      const expected = memberJoinTimes.filter((m) => m.joinedAt < weekEndMs);
+      if (expected.length === 0) continue;
+      const inner = weeklyCountByUser.get(wKey);
+      const allMet = expected.every(
+        (m) => (inner?.get(m.user_id) ?? 0) >= target,
+      );
+      if (allMet) perfectColumns.add(col.key);
+      continue;
+    }
     const colEndMs = new Date(`${col.key}T00:00:00Z`).getTime() + stepMs;
     const expected = memberJoinTimes.filter((m) => m.joinedAt < colEndMs);
     if (expected.length === 0) continue;
@@ -217,6 +258,49 @@ export function CheckInGrid({
     }
   }
 
+  // Streak length per column — counts the run of consecutive perfect columns
+  // ending at (and including) this one, walking oldest → newest. Used for the
+  // gradient deepening and for the milestone medals at 5 / 10 / 30.
+  const streakLengthByKey = new Map<string, number>();
+  {
+    const oldestFirst = [...columns].reverse();
+    let streak = 0;
+    for (const col of oldestFirst) {
+      if (col.isPrePact) {
+        streak = 0;
+        continue;
+      }
+      if (perfectColumns.has(col.key)) {
+        streak += 1;
+        streakLengthByKey.set(col.key, streak);
+      } else if (!isRequired(col.key)) {
+        // rest days don't reset the streak in daily pacts (you can't fail a
+        // day that isn't required), they just don't extend it either.
+        continue;
+      } else {
+        streak = 0;
+      }
+    }
+  }
+
+  const perfectFill = (streak: number, base: number, span: number): string => {
+    // Lavender (R 156 G 122 B 184). Ramp opacity with streak length so a long
+    // run reads deeper. base is the floor alpha, span is the additional alpha
+    // gained as the streak grows toward 14.
+    const t = Math.min(1, Math.max(0, streak) / 14);
+    const a = base + span * t;
+    return `rgba(156, 122, 184, ${a.toFixed(3)})`;
+  };
+
+  // Medal milestones — show on the column where the streak first hits the
+  // threshold so you can see "this is where I hit 5/10/30".
+  const medalFor = (streak: number): "bronze" | "silver" | "gold" | null => {
+    if (streak === 5) return "bronze";
+    if (streak === 10) return "silver";
+    if (streak === 30) return "gold";
+    return null;
+  };
+
   const cellCount = (memberId: string, key: string): number =>
     memberId === currentUserId
       ? myCountOptimistic(key)
@@ -233,7 +317,7 @@ export function CheckInGrid({
     if (!isRequired(col.key)) return "rest";
 
     const count = cellCount(member.user_id, col.key);
-    if (count >= target) return "done";
+    if (count >= cellTarget) return "done";
     if (count > 0) return "partial";
     return "pending";
   };
@@ -242,9 +326,11 @@ export function CheckInGrid({
     if (isPending) return;
     startTransition(async () => {
       toggleOptimistic(colKey);
-      const result = await togglePeriodCompletion(pactId, colKey);
+      const result = isWeeklyFlex
+        ? await toggleDayCompletion(pactId, colKey)
+        : await togglePeriodCompletion(pactId, colKey);
       if (!result.ok) {
-        console.error("togglePeriodCompletion failed:", result.error);
+        console.error("toggle failed:", result.error);
         return;
       }
       if (result.done && colKey !== todayKey) {
@@ -315,10 +401,38 @@ export function CheckInGrid({
             const isToday = col.key === todayKey;
             const isPerfect = perfectColumns.has(col.key);
             const showStartLine = idx === firstPrePactIndex;
+            const streak = streakLengthByKey.get(col.key) ?? 0;
+            const medal = isPerfect ? medalFor(streak) : null;
+            const colRequired = isRequired(col.key);
+            // A "missed" column is a required, non-perfect column in the past
+            // (today is exempt — you haven't missed it yet). For weekly-flex,
+            // a day in a partial week is also "missed" if the week is over.
+            const isPastMissed =
+              !col.isPrePact &&
+              !isToday &&
+              colRequired &&
+              !isPerfect &&
+              col.key < todayKey;
             const labels =
-              challenge.frequency === "daily" ? dailyColLabels(col.key) : null;
+              colFrequency === "daily" ? dailyColLabels(col.key) : null;
             const weeklyLabels =
-              challenge.frequency === "weekly" ? weeklyColLabels(col.key) : null;
+              colFrequency === "weekly" ? weeklyColLabels(col.key) : null;
+            const headerBg = col.isPrePact
+              ? "transparent"
+              : isPerfect
+                ? perfectFill(streak, 0.18, 0.4)
+                : isToday
+                  ? "var(--card)"
+                  : isPastMissed
+                    ? "rgba(216, 98, 58, 0.12)"
+                    : "transparent";
+            const headerColor = col.isPrePact
+              ? "var(--mute)"
+              : isPerfect
+                ? "var(--perfect)"
+                : isPastMissed
+                  ? "var(--accent)"
+                  : "var(--mute)";
             return (
               <div
                 key={col.key}
@@ -331,20 +445,8 @@ export function CheckInGrid({
                   justifyContent: "flex-end",
                   paddingBottom: 6,
                   fontFamily: "var(--font-stat-mono)",
-                  background: col.isPrePact
-                    ? "transparent"
-                    : isPerfect
-                      ? "var(--perfect-soft)"
-                      : isToday
-                        ? "var(--accent-soft)"
-                        : "transparent",
-                  color: col.isPrePact
-                    ? "var(--mute)"
-                    : isPerfect
-                      ? "var(--perfect)"
-                      : isToday
-                        ? "var(--accent)"
-                        : "var(--mute)",
+                  background: headerBg,
+                  color: headerColor,
                   opacity: col.isPrePact ? 0.5 : 1,
                   borderLeft: showStartLine
                     ? "1px solid rgba(216, 98, 58, 0.5)"
@@ -352,6 +454,27 @@ export function CheckInGrid({
                   position: "relative",
                 }}
               >
+                {medal && (
+                  <span
+                    aria-hidden
+                    title={`${streak}-day streak`}
+                    style={{
+                      position: "absolute",
+                      top: 2,
+                      right: 3,
+                      fontSize: 11,
+                      lineHeight: 1,
+                      filter:
+                        medal === "bronze"
+                          ? "hue-rotate(-10deg) saturate(1.1)"
+                          : medal === "silver"
+                            ? "grayscale(0.4) brightness(1.05)"
+                            : "saturate(1.25)",
+                    }}
+                  >
+                    {medal === "gold" ? "🥇" : medal === "silver" ? "🥈" : "🥉"}
+                  </span>
+                )}
                 {labels && (
                   <>
                     <span
@@ -445,6 +568,14 @@ export function CheckInGrid({
                 const state = computeCell(m, col);
                 const isToday = col.key === todayKey;
                 const isPerfect = perfectColumns.has(col.key);
+                const streak = streakLengthByKey.get(col.key) ?? 0;
+                const colRequired = isRequired(col.key);
+                const isPastMissed =
+                  !col.isPrePact &&
+                  !isToday &&
+                  colRequired &&
+                  !isPerfect &&
+                  col.key < todayKey;
                 // I can tap any of my cells; the server action toggles in
                 // single-target mode and appends in multi-target mode.
                 const canTap =
@@ -464,9 +595,9 @@ export function CheckInGrid({
                       background: col.isPrePact
                         ? "transparent"
                         : isPerfect
-                          ? "rgba(156, 122, 184, 0.08)"
-                          : isToday
-                            ? "rgba(216, 98, 58, 0.06)"
+                          ? perfectFill(streak, 0.06, 0.18)
+                          : isPastMissed
+                            ? "rgba(216, 98, 58, 0.05)"
                             : "transparent",
                       borderLeft: showStartLine
                         ? "1px solid rgba(216, 98, 58, 0.5)"

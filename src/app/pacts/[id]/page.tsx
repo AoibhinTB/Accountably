@@ -160,12 +160,17 @@ export default async function PactPage({
     created_at: string;
   };
 
+  // Filter to the current user's own nudges so the "just nudged · X ago"
+  // chip reflects when YOU last nudged this person — otherwise someone else's
+  // fresh nudge in the same week made it look like every row had been nudged
+  // "just now". Recipient-side nudge awareness lives in /you/notifications.
   const nudgesPromise =
-    challenge && periodStartKey
+    challenge && periodStartKey && userData.user
       ? supabase
           .from("nudges")
           .select("to_user_id, created_at")
           .eq("challenge_id", challenge.id)
+          .eq("from_user_id", userData.user.id)
           .eq("period_start", periodStartKey)
           .order("created_at", { ascending: false })
           .returns<NudgeRow[]>()
