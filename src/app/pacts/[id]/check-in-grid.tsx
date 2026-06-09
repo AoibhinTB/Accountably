@@ -301,6 +301,40 @@ export function CheckInGrid({
     return null;
   };
 
+  // Per-member streak — separate from the group streak above. Walks oldest →
+  // newest, counts consecutive done columns for that member, and records the
+  // streak length at each milestone column. Rest days and pre-join columns
+  // don't break the streak (you can't fail a day you weren't expected on),
+  // pre-pact resets cleanly.
+  const memberStreakByCol = new Map<string, Map<string, number>>();
+  for (const m of members) {
+    const memberMap = new Map<string, number>();
+    const oldestFirst = [...columns].reverse();
+    let streak = 0;
+    const memberJoinedMs = new Date(m.joined_at).getTime();
+    for (const col of oldestFirst) {
+      if (col.isPrePact) {
+        streak = 0;
+        continue;
+      }
+      const colEndMs =
+        new Date(`${col.key}T00:00:00Z`).getTime() + stepMs;
+      if (colEndMs <= memberJoinedMs) continue; // not joined yet
+      if (!isRequired(col.key)) continue; // rest day
+      const count =
+        m.user_id === currentUserId
+          ? myCountOptimistic(col.key)
+          : serverCountFor(col.key, m.user_id);
+      if (count >= cellTarget) {
+        streak += 1;
+        memberMap.set(col.key, streak);
+      } else {
+        streak = 0;
+      }
+    }
+    memberStreakByCol.set(m.user_id, memberMap);
+  }
+
   const cellCount = (memberId: string, key: string): number =>
     memberId === currentUserId
       ? myCountOptimistic(key)
@@ -582,6 +616,9 @@ export function CheckInGrid({
                   isYou && state !== "prePact" && state !== "preJoin" && state !== "rest";
                 const cellCountValue = cellCount(m.user_id, col.key);
                 const showStartLine = idx === firstPrePactIndex;
+                const memberStreak =
+                  memberStreakByCol.get(m.user_id)?.get(col.key) ?? 0;
+                const memberMedal = medalFor(memberStreak);
                 return (
                   <div
                     key={col.key}
@@ -602,8 +639,37 @@ export function CheckInGrid({
                       borderLeft: showStartLine
                         ? "1px solid rgba(216, 98, 58, 0.5)"
                         : "none",
+                      position: "relative",
                     }}
                   >
+                    {memberMedal && (
+                      <span
+                        aria-hidden
+                        title={`${memberStreak}-${
+                          isWeeklyFlex ? "day" : colFrequency === "weekly" ? "week" : "day"
+                        } personal streak`}
+                        style={{
+                          position: "absolute",
+                          top: 1,
+                          right: 2,
+                          fontSize: 10,
+                          lineHeight: 1,
+                          pointerEvents: "none",
+                          filter:
+                            memberMedal === "bronze"
+                              ? "hue-rotate(-10deg) saturate(1.1)"
+                              : memberMedal === "silver"
+                                ? "grayscale(0.4) brightness(1.05)"
+                                : "saturate(1.25)",
+                        }}
+                      >
+                        {memberMedal === "gold"
+                          ? "🥇"
+                          : memberMedal === "silver"
+                            ? "🥈"
+                            : "🥉"}
+                      </span>
+                    )}
                     {canTap ? (
                       <button
                         type="button"
