@@ -300,6 +300,22 @@ export function CheckInGrid({
     if (streak === 30) return "gold";
     return null;
   };
+  // Cumulative "best ever" version — once you've passed 30, you stay gold;
+  // 10–29 silver; 5–9 bronze. Drives the trophy strip above the grid.
+  const bestMedalFor = (
+    max: number,
+  ): "bronze" | "silver" | "gold" | null => {
+    if (max >= 30) return "gold";
+    if (max >= 10) return "silver";
+    if (max >= 5) return "bronze";
+    return null;
+  };
+
+  const groupMaxStreak = Math.max(
+    0,
+    ...Array.from(streakLengthByKey.values()),
+  );
+  const groupBestMedal = bestMedalFor(groupMaxStreak);
 
   // Per-member streak — separate from the group streak above. Walks oldest →
   // newest, counts consecutive done columns for that member, and records the
@@ -334,6 +350,30 @@ export function CheckInGrid({
     }
     memberStreakByCol.set(m.user_id, memberMap);
   }
+
+  const memberMaxStreak = (userId: string): number => {
+    const map = memberStreakByCol.get(userId);
+    if (!map) return 0;
+    return Math.max(0, ...Array.from(map.values()));
+  };
+  const myMaxStreak = currentUserId ? memberMaxStreak(currentUserId) : 0;
+  const myBestMedal = bestMedalFor(myMaxStreak);
+  const periodWord =
+    colFrequency === "weekly" && !isWeeklyFlex
+      ? myMaxStreak === 1
+        ? "week"
+        : "weeks"
+      : myMaxStreak === 1
+        ? "day"
+        : "days";
+  const groupPeriodWord =
+    colFrequency === "weekly" && !isWeeklyFlex
+      ? groupMaxStreak === 1
+        ? "week"
+        : "weeks"
+      : groupMaxStreak === 1
+        ? "day"
+        : "days";
 
   const cellCount = (memberId: string, key: string): number =>
     memberId === currentUserId
@@ -398,6 +438,27 @@ export function CheckInGrid({
   const CELL_W = 38;
 
   return (
+    <>
+      {(groupBestMedal || myBestMedal) && (
+        <div className="mb-2.5 flex flex-wrap gap-2">
+          {groupBestMedal && (
+            <MedalChip
+              medal={groupBestMedal}
+              streak={groupMaxStreak}
+              periodWord={groupPeriodWord}
+              kind="group"
+            />
+          )}
+          {myBestMedal && (
+            <MedalChip
+              medal={myBestMedal}
+              streak={myMaxStreak}
+              periodWord={periodWord}
+              kind="personal"
+            />
+          )}
+        </div>
+      )}
     <div
       ref={scrollerRef}
       className="overflow-x-auto no-scrollbar"
@@ -491,19 +552,23 @@ export function CheckInGrid({
                 {medal && (
                   <span
                     aria-hidden
-                    title={`${streak}-day streak`}
+                    title={`${streak}-${
+                      colFrequency === "weekly" ? "week" : "day"
+                    } group streak`}
                     style={{
                       position: "absolute",
-                      top: 2,
-                      right: 3,
-                      fontSize: 11,
+                      top: 1,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      fontSize: 16,
                       lineHeight: 1,
                       filter:
-                        medal === "bronze"
+                        "drop-shadow(0 1px 1px rgba(42,31,24,0.25)) " +
+                        (medal === "bronze"
                           ? "hue-rotate(-10deg) saturate(1.1)"
                           : medal === "silver"
                             ? "grayscale(0.4) brightness(1.05)"
-                            : "saturate(1.25)",
+                            : "saturate(1.3)"),
                     }}
                   >
                     {medal === "gold" ? "🥇" : medal === "silver" ? "🥈" : "🥉"}
@@ -646,21 +711,26 @@ export function CheckInGrid({
                       <span
                         aria-hidden
                         title={`${memberStreak}-${
-                          isWeeklyFlex ? "day" : colFrequency === "weekly" ? "week" : "day"
+                          isWeeklyFlex
+                            ? "day"
+                            : colFrequency === "weekly"
+                              ? "week"
+                              : "day"
                         } personal streak`}
                         style={{
                           position: "absolute",
                           top: 1,
                           right: 2,
-                          fontSize: 10,
+                          fontSize: 13,
                           lineHeight: 1,
                           pointerEvents: "none",
                           filter:
-                            memberMedal === "bronze"
+                            "drop-shadow(0 1px 1px rgba(42,31,24,0.25)) " +
+                            (memberMedal === "bronze"
                               ? "hue-rotate(-10deg) saturate(1.1)"
                               : memberMedal === "silver"
                                 ? "grayscale(0.4) brightness(1.05)"
-                                : "saturate(1.25)",
+                                : "saturate(1.3)"),
                         }}
                       >
                         {memberMedal === "gold"
@@ -728,6 +798,59 @@ export function CheckInGrid({
         />
       )}
     </div>
+    </>
+  );
+}
+
+function MedalChip({
+  medal,
+  streak,
+  periodWord,
+  kind,
+}: {
+  medal: "bronze" | "silver" | "gold";
+  streak: number;
+  periodWord: string;
+  kind: "group" | "personal";
+}) {
+  const glyph = medal === "gold" ? "🥇" : medal === "silver" ? "🥈" : "🥉";
+  const tint =
+    medal === "gold"
+      ? "rgba(242, 169, 59, 0.18)"
+      : medal === "silver"
+        ? "rgba(170, 170, 180, 0.18)"
+        : "rgba(196, 132, 80, 0.18)";
+  const border =
+    medal === "gold"
+      ? "rgba(242, 169, 59, 0.45)"
+      : medal === "silver"
+        ? "rgba(170, 170, 180, 0.55)"
+        : "rgba(196, 132, 80, 0.5)";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "6px 12px 6px 8px",
+        borderRadius: 999,
+        background: tint,
+        border: `1px solid ${border}`,
+        fontFamily: "var(--font-stat-mono)",
+        fontSize: 11,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        color: "var(--ink)",
+        fontWeight: 600,
+      }}
+    >
+      <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden>
+        {glyph}
+      </span>
+      <span style={{ fontVariantNumeric: "tabular-nums" }}>
+        {streak} {periodWord} {kind === "group" ? "group" : "you"}
+      </span>
+    </span>
   );
 }
 
