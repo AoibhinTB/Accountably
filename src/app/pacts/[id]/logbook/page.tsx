@@ -294,8 +294,27 @@ export default async function LogbookPage({
       {myNotes.length > 0 && (
         <section>
           <div className="label mb-2">your check-in notes</div>
-          <ul className="flex flex-col gap-2">
-            {myNotes.map((c) => {
+          {(() => {
+            // Bucket by calendar month so older months can collapse.
+            const monthBuckets = new Map<
+              string,
+              { label: string; notes: typeof myNotes }
+            >();
+            for (const n of myNotes) {
+              const d = new Date(n.completed_at);
+              const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+              const label = d.toLocaleDateString(undefined, {
+                month: "long",
+                year: "numeric",
+              });
+              const bucket = monthBuckets.get(key) ?? { label, notes: [] };
+              bucket.notes.push(n);
+              monthBuckets.set(key, bucket);
+            }
+            const ordered = Array.from(monthBuckets.entries()).sort((a, b) =>
+              a[0] < b[0] ? 1 : -1,
+            );
+            const renderNote = (c: (typeof myNotes)[number]) => {
               const metricChip =
                 c.metric_value !== null && metricKind
                   ? (() => {
@@ -379,8 +398,72 @@ export default async function LogbookPage({
                   </p>
                 </li>
               );
-            })}
-          </ul>
+            };
+            return (
+              <div className="flex flex-col gap-4">
+                {ordered.map(([key, bucket], idx) => {
+                  // Current month stays open; everything older collapses.
+                  const isCurrent = idx === 0;
+                  if (isCurrent) {
+                    return (
+                      <div key={key}>
+                        <div
+                          className="label mb-1.5"
+                          style={{ color: "var(--ink-soft)" }}
+                        >
+                          {bucket.label} · {bucket.notes.length}
+                        </div>
+                        <ul className="flex flex-col gap-2">
+                          {bucket.notes.map(renderNote)}
+                        </ul>
+                      </div>
+                    );
+                  }
+                  return (
+                    <details key={key} className="group">
+                      <summary
+                        className="press flex min-h-10 cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden"
+                        style={{
+                          padding: "0 14px",
+                          background: "var(--card-inset)",
+                          border: "1px solid var(--line)",
+                          borderRadius: "var(--radius)",
+                          color: "var(--ink-soft)",
+                          fontSize: 13,
+                        }}
+                      >
+                        <span
+                          className="inline-flex items-center gap-2"
+                          style={{
+                            fontFamily: "var(--font-stat-mono)",
+                            fontSize: 11,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {bucket.label}
+                          <span style={{ color: "var(--mute)" }}>
+                            · {bucket.notes.length}
+                          </span>
+                        </span>
+                        <span
+                          className="transition-transform group-open:rotate-180"
+                          style={{ color: "var(--mute)", fontSize: 12 }}
+                          aria-hidden
+                        >
+                          ▾
+                        </span>
+                      </summary>
+                      <ul className="mt-2 flex flex-col gap-2">
+                        {bucket.notes.map(renderNote)}
+                      </ul>
+                    </details>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </section>
       )}
     </main>

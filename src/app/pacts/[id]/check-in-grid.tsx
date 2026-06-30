@@ -300,8 +300,9 @@ export function CheckInGrid({
     if (streak === 30) return "gold";
     return null;
   };
-  // Cumulative "best ever" version — once you've passed 30, you stay gold;
-  // 10–29 silver; 5–9 bronze. Drives the trophy strip above the grid.
+  // Highest medal earned by an ongoing streak — gold for 30+, silver for 10+,
+  // bronze for 5+. If the streak resets, this returns null so the medal
+  // disappears from the chip strip and the column header.
   const bestMedalFor = (
     max: number,
   ): "bronze" | "silver" | "gold" | null => {
@@ -311,11 +312,29 @@ export function CheckInGrid({
     return null;
   };
 
-  const groupMaxStreak = Math.max(
-    0,
-    ...Array.from(streakLengthByKey.values()),
-  );
-  const groupBestMedal = bestMedalFor(groupMaxStreak);
+  // Current group streak: walk newest → oldest from today. Skip today if it
+  // isn't perfect (in-progress), skip rest days, stop at the first past
+  // required column that isn't perfect. The set of columns that participate
+  // in this run is what we use to decide where medals are still alive — once
+  // the streak breaks every column from the prior run drops its medal.
+  const groupCurrentStreakKeys = new Set<string>();
+  let groupCurrentStreak = 0;
+  for (let i = 0; i < columns.length; i++) {
+    const col = columns[i];
+    if (col.isPrePact) break;
+    const isToday = col.key === todayKey;
+    if (!isRequired(col.key)) continue;
+    if (perfectColumns.has(col.key)) {
+      groupCurrentStreak += 1;
+      groupCurrentStreakKeys.add(col.key);
+    } else if (isToday) {
+      // today is in progress — neither extends nor breaks the streak
+      continue;
+    } else {
+      break;
+    }
+  }
+  const groupBestMedal = bestMedalFor(groupCurrentStreak);
 
   // Per-member streak — separate from the group streak above. Walks oldest →
   // newest, counts consecutive done columns for that member, and records the
@@ -351,27 +370,57 @@ export function CheckInGrid({
     memberStreakByCol.set(m.user_id, memberMap);
   }
 
-  const memberMaxStreak = (userId: string): number => {
-    const map = memberStreakByCol.get(userId);
-    if (!map) return 0;
-    return Math.max(0, ...Array.from(map.values()));
-  };
-  const myMaxStreak = currentUserId ? memberMaxStreak(currentUserId) : 0;
-  const myBestMedal = bestMedalFor(myMaxStreak);
+  // Same idea as the group: per-member current streak set, walking from today
+  // backward. A member's medal lives only as long as the unbroken run that
+  // contains it.
+  const memberCurrentStreakKeys = new Map<string, Set<string>>();
+  const memberCurrentStreak = new Map<string, number>();
+  for (const m of members) {
+    const set = new Set<string>();
+    let streak = 0;
+    const memberJoinedMs = new Date(m.joined_at).getTime();
+    for (let i = 0; i < columns.length; i++) {
+      const col = columns[i];
+      if (col.isPrePact) break;
+      const colEndMs =
+        new Date(`${col.key}T00:00:00Z`).getTime() + stepMs;
+      if (colEndMs <= memberJoinedMs) break; // hit join boundary
+      if (!isRequired(col.key)) continue;
+      const isToday = col.key === todayKey;
+      const count =
+        m.user_id === currentUserId
+          ? myCountOptimistic(col.key)
+          : serverCountFor(col.key, m.user_id);
+      if (count >= cellTarget) {
+        streak += 1;
+        set.add(col.key);
+      } else if (isToday) {
+        continue;
+      } else {
+        break;
+      }
+    }
+    memberCurrentStreakKeys.set(m.user_id, set);
+    memberCurrentStreak.set(m.user_id, streak);
+  }
+  const myCurrentStreak = currentUserId
+    ? (memberCurrentStreak.get(currentUserId) ?? 0)
+    : 0;
+  const myBestMedal = bestMedalFor(myCurrentStreak);
   const periodWord =
     colFrequency === "weekly" && !isWeeklyFlex
-      ? myMaxStreak === 1
+      ? myCurrentStreak === 1
         ? "week"
         : "weeks"
-      : myMaxStreak === 1
+      : myCurrentStreak === 1
         ? "day"
         : "days";
   const groupPeriodWord =
     colFrequency === "weekly" && !isWeeklyFlex
-      ? groupMaxStreak === 1
+      ? groupCurrentStreak === 1
         ? "week"
         : "weeks"
-      : groupMaxStreak === 1
+      : groupCurrentStreak === 1
         ? "day"
         : "days";
 
@@ -444,7 +493,7 @@ export function CheckInGrid({
           {groupBestMedal && (
             <MedalChip
               medal={groupBestMedal}
-              streak={groupMaxStreak}
+              streak={groupCurrentStreak}
               periodWord={groupPeriodWord}
               kind="group"
             />
@@ -452,7 +501,7 @@ export function CheckInGrid({
           {myBestMedal && (
             <MedalChip
               medal={myBestMedal}
-              streak={myMaxStreak}
+              streak={myCurrentStreak}
               periodWord={periodWord}
               kind="personal"
             />
@@ -497,7 +546,12 @@ export function CheckInGrid({
             const isPerfect = perfectColumns.has(col.key);
             const showStartLine = idx === firstPrePactIndex;
             const streak = streakLengthByKey.get(col.key) ?? 0;
-            const medal = isPerfect ? medalFor(streak) : null;
+            // Only show the medal if this column is still part of the live
+            // streak — once the streak resets, the marker disappears.
+            const medal =
+              isPerfect && groupCurrentStreakKeys.has(col.key)
+                ? medalFor(streak)
+                : null;
             const colRequired = isRequired(col.key);
             // A "missed" column is a required, non-perfect column in the past
             // (today is exempt — you haven't missed it yet). For weekly-flex,
@@ -683,7 +737,9 @@ export function CheckInGrid({
                 const showStartLine = idx === firstPrePactIndex;
                 const memberStreak =
                   memberStreakByCol.get(m.user_id)?.get(col.key) ?? 0;
-                const memberMedal = medalFor(memberStreak);
+                const memberLiveSet = memberCurrentStreakKeys.get(m.user_id);
+                const memberMedal =
+                  memberLiveSet?.has(col.key) ? medalFor(memberStreak) : null;
                 return (
                   <div
                     key={col.key}
