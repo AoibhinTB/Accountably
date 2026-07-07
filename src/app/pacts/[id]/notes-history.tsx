@@ -53,38 +53,103 @@ export function NotesHistory({
 }) {
   if (notes.length === 0) return null;
 
+  // Bucket by calendar month so older months can collapse — mirrors the
+  // pattern used in the private logbook.
+  const monthBuckets = new Map<string, { label: string; notes: Note[] }>();
+  for (const n of notes) {
+    const d = new Date(n.completed_at);
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString(undefined, {
+      month: "long",
+      year: "numeric",
+    });
+    const bucket = monthBuckets.get(key) ?? { label, notes: [] };
+    bucket.notes.push(n);
+    monthBuckets.set(key, bucket);
+  }
+  const ordered = Array.from(monthBuckets.entries()).sort((a, b) =>
+    a[0] < b[0] ? 1 : -1,
+  );
+
+  const renderNote = (n: Note) => (
+    <NoteRow
+      key={n.id}
+      note={n}
+      currentUserId={currentUserId}
+      metricKind={metricKind}
+      metricName={metricName}
+      revalidatePath={`/pacts/${pactId}`}
+    />
+  );
+
   return (
     <section className="px-5 pt-6">
-      <details open className="group">
-        <summary
-          className="press flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden"
-          style={{ minHeight: 28 }}
-        >
-          <span className="label inline-flex items-center gap-1.5">
-            notes
-            <span style={{ color: "var(--mute)" }}>· {notes.length}</span>
-          </span>
-          <Chevron
-            direction="down"
-            size={12}
-            strokeWidth={2}
-            className="transition-transform group-open:rotate-180"
-            style={{ color: "var(--mute)" }}
-          />
-        </summary>
-        <ul className="mt-2 flex flex-col gap-2">
-          {notes.map((n) => (
-            <NoteRow
-              key={n.id}
-              note={n}
-              currentUserId={currentUserId}
-              metricKind={metricKind}
-              metricName={metricName}
-              revalidatePath={`/pacts/${pactId}`}
-            />
-          ))}
-        </ul>
-      </details>
+      <div className="label mb-2 inline-flex items-center gap-1.5">
+        notes
+        <span style={{ color: "var(--mute)" }}>· {notes.length}</span>
+      </div>
+      <div className="flex flex-col gap-4">
+        {ordered.map(([key, bucket], idx) => {
+          // Current (most recent) month stays open; older months collapse.
+          const isCurrent = idx === 0;
+          if (isCurrent) {
+            return (
+              <div key={key}>
+                <div
+                  className="label mb-1.5"
+                  style={{ color: "var(--ink-soft)" }}
+                >
+                  {bucket.label} · {bucket.notes.length}
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {bucket.notes.map(renderNote)}
+                </ul>
+              </div>
+            );
+          }
+          return (
+            <details key={key} className="group">
+              <summary
+                className="press flex min-h-10 cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden"
+                style={{
+                  padding: "0 14px",
+                  background: "var(--card-inset)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--radius)",
+                  color: "var(--ink-soft)",
+                  fontSize: 13,
+                }}
+              >
+                <span
+                  className="inline-flex items-center gap-2"
+                  style={{
+                    fontFamily: "var(--font-stat-mono)",
+                    fontSize: 11,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    fontWeight: 600,
+                  }}
+                >
+                  {bucket.label}
+                  <span style={{ color: "var(--mute)" }}>
+                    · {bucket.notes.length}
+                  </span>
+                </span>
+                <Chevron
+                  direction="down"
+                  size={12}
+                  strokeWidth={2}
+                  className="transition-transform group-open:rotate-180"
+                  style={{ color: "var(--mute)" }}
+                />
+              </summary>
+              <ul className="mt-2 flex flex-col gap-2">
+                {bucket.notes.map(renderNote)}
+              </ul>
+            </details>
+          );
+        })}
+      </div>
     </section>
   );
 }
