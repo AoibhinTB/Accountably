@@ -95,7 +95,7 @@ export function ReactionBar({
       )}
 
       <details
-        className="absolute right-3 bottom-0 z-10"
+        className="absolute right-3 bottom-0 z-10 open:z-30"
         style={{ transform: "translateY(30%)" }}
       >
         <summary
